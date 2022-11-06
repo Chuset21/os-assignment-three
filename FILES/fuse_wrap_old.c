@@ -13,8 +13,7 @@
 #include "../disk_emu.h"
 #include "../sfs_api.h"
 
-static int fuse_getattr(const char *path, struct stat *stbuf)
-{
+static int fuse_getattr(const char *path, struct stat *stbuf) {
     int res = 0;
     int size;
     
