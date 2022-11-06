@@ -30,6 +30,12 @@ typedef struct inode_t {
     uint32_t is_taken; // represent as a boolean TODO figure out if this is needed
 } inode_t;
 
+// Use an array of these as our file descriptor table
+typedef struct file_descriptor_entry_t {
+    uint32_t i_node_num;
+    uint32_t read_write_ptr;
+} file_descriptor_entry_t;
+
 // TODO figure out if this is needed
 typedef struct directory_entry_t {
     char *file_name;
