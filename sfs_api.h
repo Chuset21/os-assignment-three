@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define MAX_FILE_NAME_SIZE 16
 #define BLOCK_SIZE 1024
 #define INDIRECT_LIST_SIZE (BLOCK_SIZE / 4)
 
@@ -28,6 +29,12 @@ typedef struct inode_t {
     uint32_t indirect[INDIRECT_LIST_SIZE];
     uint32_t is_taken; // represent as a boolean TODO figure out if this is needed
 } inode_t;
+
+// TODO figure out if this is needed
+typedef struct directory_entry_t {
+    char *file_name;
+    inode_t inode;
+} directory_entry_t;
 
 void mksfs(int);
 
