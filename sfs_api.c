@@ -17,13 +17,15 @@
 // Number of blocks needed to store -> super block + inode table + data blocks + free bitmap
 #define TOTAL_NUM_OF_BLOCKS (FREE_BITMAP_OFFSET + NUM_OF_FREE_BITMAP_BLOCKS)
 #define MAX_FILE_NAME_SIZE 16
-#define MAX_DATA_BLOCKS_FOR_FILE  (12 + (BLOCK_SIZE / (sizeof(uint32_t)))) // 12 direct pointers + the amount of indirect pointers possible
+#define MAX_DATA_BLOCKS_FOR_FILE (12 + (BLOCK_SIZE / (sizeof(uint32_t)))) // 12 direct pointers + the amount of indirect pointers possible
+#define MAX_NUM_OF_DIR_ENTRIES CEIL(MAX_DATA_BLOCKS_FOR_FILE * BLOCK_SIZE, sizeof(directory_entry_t))
 #define FREE_BLOCK_MAP_ARR_SIZE (NUM_OF_DATA_BLOCKS / sizeof(uint64_t))
 
 super_block_t super_block;
 uint64_t free_block_map[FREE_BLOCK_MAP_ARR_SIZE];
 inode_t inode_table[NUM_OF_INODES];
-directory_entry_t root_dir[NUM_OF_INODES];
+directory_entry_t root_dir[MAX_NUM_OF_DIR_ENTRIES];
+file_descriptor_entry_t file_desc_table[NUM_OF_INODES];
 
 /**
  * Initialise the super_block.
@@ -37,6 +39,12 @@ void super_block_init() {
 }
 
 void mksfs(int fresh) {
+    // Initialise file descriptor table to be empty
+    for (int i = 0; i < NUM_OF_INODES; ++i) {
+        file_desc_table[i].inode_num = NUM_OF_INODES; // Initialise an invalid number
+        file_desc_table[i].read_write_ptr = 0;
+    }
+
     if (fresh) {
         super_block_init();
         init_fresh_disk(DISK_NAME, BLOCK_SIZE, TOTAL_NUM_OF_BLOCKS);
@@ -44,7 +52,14 @@ void mksfs(int fresh) {
         write_blocks(0, INODE_BLOCKS_OFFSET, &super_block);
     } else {
         init_disk(DISK_NAME, BLOCK_SIZE, TOTAL_NUM_OF_BLOCKS);
+        // Read super block into memory
         read_blocks(0, INODE_BLOCKS_OFFSET, &super_block);
+        // Read inode table into memory
+        read_blocks(INODE_BLOCKS_OFFSET, NUM_OF_INODE_BLOCKS, inode_table);
+        // Read root directory into memory
+        // TODO implement function to read data blocks
+        // Read free block map into memory
+        read_blocks(FREE_BITMAP_OFFSET, NUM_OF_FREE_BITMAP_BLOCKS, free_block_map);
     }
 }
 
