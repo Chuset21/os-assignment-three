@@ -41,10 +41,10 @@ void mksfs(int fresh) {
         super_block_init();
         init_fresh_disk(DISK_NAME, BLOCK_SIZE, TOTAL_NUM_OF_BLOCKS);
         // Write the super block to the disk
-        write_blocks(0, 1, &super_block);
+        write_blocks(0, INODE_BLOCKS_OFFSET, &super_block);
     } else {
         init_disk(DISK_NAME, BLOCK_SIZE, TOTAL_NUM_OF_BLOCKS);
-        read_blocks(0, 1, &super_block);
+        read_blocks(0, INODE_BLOCKS_OFFSET, &super_block);
     }
 }
 
