@@ -17,7 +17,7 @@
 // Number of blocks needed to store -> super block + inode table + data blocks + free bitmap
 #define TOTAL_NUM_OF_BLOCKS (FREE_BITMAP_OFFSET + NUM_OF_FREE_BITMAP_BLOCKS)
 #define MAX_FILE_NAME_SIZE 16
-#define MAX_DATA_BLOCKS_FOR_FILE (12 + (BLOCK_SIZE / (sizeof(uint32_t)))) // 12 direct pointers + the amount of indirect pointers possible
+#define MAX_DATA_BLOCKS_FOR_FILE (12 + INDIRECT_LIST_SIZE) // 12 direct pointers + the amount of indirect pointers possible
 #define MAX_NUM_OF_DIR_ENTRIES CEIL(MAX_DATA_BLOCKS_FOR_FILE * BLOCK_SIZE, sizeof(directory_entry_t))
 #define FREE_BLOCK_MAP_ARR_SIZE (NUM_OF_DATA_BLOCKS / sizeof(uint64_t))
 
