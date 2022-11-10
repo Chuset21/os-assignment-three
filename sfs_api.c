@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <string.h>
 #include "sfs_api.h"
 #include "disk_emu.h"
 
@@ -11,7 +12,7 @@
 #define NUM_OF_INODES NUM_OF_DATA_BLOCKS // At most one inode is needed for each possible file
 #define NUM_OF_INODE_BLOCKS CEIL(NUM_OF_INODES * sizeof(inode_t), BLOCK_SIZE)
 #define INODE_BLOCKS_OFFSET 1
-#define DATA_BLOCKS_OFFSET (NUM_OF_INODE_BLOCKS + INODE_BLOCKS_OFFSET)
+#define DATA_BLOCKS_OFFSET (INODE_BLOCKS_OFFSET + NUM_OF_INODE_BLOCKS)
 #define FREE_BITMAP_OFFSET (DATA_BLOCKS_OFFSET + NUM_OF_DATA_BLOCKS)
 #define NUM_OF_FREE_BITMAP_BLOCKS (NUM_OF_DATA_BLOCKS / BLOCK_SIZE)
 // Number of blocks needed to store -> super block + inode table + data blocks + free bitmap
@@ -38,14 +39,27 @@ void super_block_init() {
     super_block.root_dir = 0;
 }
 
-void read_into_root() {
-    const inode_t root_inode = inode_table[super_block.root_dir];
-    for (int i = 0; i < NUM_OF_DATA_PTRS && i < root_inode.size; ++i) {
-        // TODO get direct ptrs into buffer
+/**
+ * Reads the information collected from the inode metadata into the given pointer.
+ * @param inode The inode to read from.
+ * @param ptr The pointer to read into.
+ */
+void read_into_ptr(const inode_t inode, const void *ptr) {
+    for (int i = 0; i < NUM_OF_DATA_PTRS && i < inode.size; ++i) {
+        // Read each data block one by one into the pointer
+        read_blocks(DATA_BLOCKS_OFFSET + inode.data_ptrs[i], 1,
+                    ((uint8_t *) ptr) + (i * BLOCK_SIZE)); // Use uint8_t instead of void for pointer arithmetic
     }
-    if (root_inode.size > NUM_OF_DATA_PTRS) {
-        const uint32_t num_of_ptrs = root_inode.size - NUM_OF_DATA_PTRS;
-        // TODO get indirect ptrs
+    if (inode.size > NUM_OF_DATA_PTRS) {
+        const uint32_t num_of_ptrs = inode.size - NUM_OF_DATA_PTRS;
+        uint32_t ptrs[INDIRECT_LIST_SIZE];
+        // Getting the indirect pointers
+        read_blocks(DATA_BLOCKS_OFFSET + inode.indirect, 1, ptrs);
+        // Read each data block one by one into the pointer
+        for (int i = 0; i < num_of_ptrs; ++i) {
+            read_blocks(DATA_BLOCKS_OFFSET + ptrs[i], 1,
+                        ((uint8_t *) ptr) + ((i + NUM_OF_DATA_PTRS) * BLOCK_SIZE));
+        }
     }
 }
 
@@ -68,7 +82,7 @@ void mksfs(int fresh) {
         // Read inode table into memory
         read_blocks(INODE_BLOCKS_OFFSET, NUM_OF_INODE_BLOCKS, inode_table);
         // Read root directory into memory
-        // TODO implement function to read data blocks
+        read_into_ptr(inode_table[super_block.root_dir], root_dir);
         // Read free block map into memory
         read_blocks(FREE_BITMAP_OFFSET, NUM_OF_FREE_BITMAP_BLOCKS, free_block_map);
     }
