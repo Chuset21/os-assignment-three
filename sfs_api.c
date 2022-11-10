@@ -17,7 +17,7 @@
 // Number of blocks needed to store -> super block + inode table + data blocks + free bitmap
 #define TOTAL_NUM_OF_BLOCKS (FREE_BITMAP_OFFSET + NUM_OF_FREE_BITMAP_BLOCKS)
 #define MAX_FILE_NAME_SIZE 16
-#define MAX_DATA_BLOCKS_FOR_FILE (12 + INDIRECT_LIST_SIZE) // 12 direct pointers + the amount of indirect pointers possible
+#define MAX_DATA_BLOCKS_FOR_FILE (NUM_OF_DATA_PTRS + INDIRECT_LIST_SIZE) // 12 direct pointers + the amount of indirect pointers possible
 #define MAX_NUM_OF_DIR_ENTRIES CEIL(MAX_DATA_BLOCKS_FOR_FILE * BLOCK_SIZE, sizeof(directory_entry_t))
 #define FREE_BLOCK_MAP_ARR_SIZE (NUM_OF_DATA_BLOCKS / sizeof(uint64_t))
 
@@ -36,6 +36,17 @@ void super_block_init() {
     super_block.file_sys_size = TOTAL_NUM_OF_BLOCKS;
     super_block.inode_table_length = NUM_OF_INODES;
     super_block.root_dir = 0;
+}
+
+void read_into_root() {
+    const inode_t root_inode = inode_table[super_block.root_dir];
+    for (int i = 0; i < NUM_OF_DATA_PTRS && i < root_inode.size; ++i) {
+        // TODO get direct ptrs into buffer
+    }
+    if (root_inode.size > NUM_OF_DATA_PTRS) {
+        const uint32_t num_of_ptrs = root_inode.size - NUM_OF_DATA_PTRS;
+        // TODO get indirect ptrs
+    }
 }
 
 void mksfs(int fresh) {
