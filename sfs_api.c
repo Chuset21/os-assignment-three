@@ -10,7 +10,7 @@
 #define DISK_NAME "sfs_disk_miguel.disk"
 #define NUM_OF_DATA_BLOCKS (1024 * 16)
 #define NUM_OF_INODES NUM_OF_DATA_BLOCKS // At most one inode is needed for each possible file
-#define NUM_OF_INODE_BLOCKS CEIL(NUM_OF_INODES * sizeof(inode_t), BLOCK_SIZE)
+#define NUM_OF_INODE_BLOCKS (CEIL(NUM_OF_INODES, BLOCK_SIZE) * sizeof(inode_t))
 #define INODE_BLOCKS_OFFSET 1
 #define DATA_BLOCKS_OFFSET (INODE_BLOCKS_OFFSET + NUM_OF_INODE_BLOCKS)
 #define FREE_BITMAP_OFFSET (DATA_BLOCKS_OFFSET + NUM_OF_DATA_BLOCKS)
@@ -19,7 +19,7 @@
 #define TOTAL_NUM_OF_BLOCKS (FREE_BITMAP_OFFSET + NUM_OF_FREE_BITMAP_BLOCKS)
 #define MAX_FILE_NAME_SIZE 16
 #define MAX_DATA_BLOCKS_FOR_FILE (NUM_OF_DATA_PTRS + INDIRECT_LIST_SIZE) // 12 direct pointers + the amount of indirect pointers possible
-#define MAX_NUM_OF_DIR_ENTRIES CEIL(MAX_DATA_BLOCKS_FOR_FILE * BLOCK_SIZE, sizeof(directory_entry_t))
+#define MAX_NUM_OF_DIR_ENTRIES (NUM_OF_INODES - 1)
 #define FREE_BLOCK_MAP_ARR_SIZE (NUM_OF_DATA_BLOCKS / sizeof(uint64_t))
 
 super_block_t super_block;
