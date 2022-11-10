@@ -20,10 +20,9 @@ typedef struct inode_t {
     uint32_t link_cnt;
     uint32_t uid;
     uint32_t gid;
-    uint32_t size;
+    uint32_t size;  // This can be used to see how many blocks are occupied (and if it's free)
     uint32_t data_ptrs[12];
     uint32_t indirect[INDIRECT_LIST_SIZE];
-    uint32_t is_free; // represent as a boolean TODO figure out if this is needed
 } inode_t;
 
 // Use an array of these as our file descriptor table
@@ -32,7 +31,6 @@ typedef struct file_descriptor_entry_t {
     uint32_t read_write_ptr;
 } file_descriptor_entry_t;
 
-// TODO figure out if this is needed
 typedef struct directory_entry_t {
     char *file_name;
     uint32_t inode_num;
