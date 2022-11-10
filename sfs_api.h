@@ -6,6 +6,7 @@
 
 #define BLOCK_SIZE 1024
 #define NUM_OF_DATA_PTRS 12
+#define MAX_FILE_NAME_SIZE 16
 #define INDIRECT_LIST_SIZE (BLOCK_SIZE / sizeof(uint32_t))
 
 typedef struct super_block_t {
@@ -21,7 +22,7 @@ typedef struct inode_t {
     uint32_t link_cnt;
     uint32_t uid;
     uint32_t gid;
-    uint32_t size;  // This can be used to see how many blocks are occupied (and if it's free)
+    uint32_t size;  // This can be used to see how many bytes are occupied (and if it's free)
     uint32_t data_ptrs[NUM_OF_DATA_PTRS];
     uint32_t indirect; // This is a pointer to a data block, which holds pointers to other data blocks, containing the actual data
 } inode_t;
@@ -33,7 +34,7 @@ typedef struct file_descriptor_entry_t {
 } file_descriptor_entry_t;
 
 typedef struct directory_entry_t {
-    char *file_name;
+    char file_name[MAX_FILE_NAME_SIZE];
     uint32_t inode_num;
 } directory_entry_t;
 

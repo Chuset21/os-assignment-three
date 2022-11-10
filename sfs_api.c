@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
+#include <printf.h>
 #include "sfs_api.h"
 #include "disk_emu.h"
 
@@ -17,7 +18,6 @@
 #define NUM_OF_FREE_BITMAP_BLOCKS (NUM_OF_DATA_BLOCKS / BLOCK_SIZE)
 // Number of blocks needed to store -> super block + inode table + data blocks + free bitmap
 #define TOTAL_NUM_OF_BLOCKS (FREE_BITMAP_OFFSET + NUM_OF_FREE_BITMAP_BLOCKS)
-#define MAX_FILE_NAME_SIZE 16
 #define MAX_DATA_BLOCKS_FOR_FILE (NUM_OF_DATA_PTRS + INDIRECT_LIST_SIZE) // 12 direct pointers + the amount of indirect pointers possible
 #define MAX_NUM_OF_DIR_ENTRIES (NUM_OF_INODES - 1)
 #define FREE_BLOCK_MAP_ARR_SIZE (NUM_OF_DATA_BLOCKS / sizeof(uint64_t))
@@ -29,7 +29,7 @@ directory_entry_t root_dir[MAX_NUM_OF_DIR_ENTRIES];
 file_descriptor_entry_t file_desc_table[NUM_OF_INODES];
 
 /**
- * Initialise the super_block.
+ * Initialise the super block.
  */
 void super_block_init() {
     super_block.magic = 0xACBD0005;
@@ -39,6 +39,9 @@ void super_block_init() {
     super_block.root_dir = 0;
 }
 
+/**
+ * Initialise the inode table.
+ */
 void inode_table_init() {
     for (int i = 0; i < NUM_OF_INODES; ++i) {
         inode_t inode = inode_table[i];
@@ -47,10 +50,39 @@ void inode_table_init() {
         inode.uid = 0;      // Not sure
         inode.gid = 0;      // Not sure
         inode.size = 0;
-        inode.indirect = TOTAL_NUM_OF_BLOCKS;
+        inode.indirect = NUM_OF_DATA_BLOCKS;  // Initialise an invalid number
         for (int j = 0; j < NUM_OF_DATA_PTRS; ++j) {
-            inode.data_ptrs[j] = TOTAL_NUM_OF_BLOCKS;
+            inode.data_ptrs[j] = NUM_OF_DATA_BLOCKS;  // Initialise an invalid number
         }
+    }
+}
+
+/**
+ * Initialise the root directory.
+ */
+void root_dir_init() {
+    for (int i = 0; i < MAX_NUM_OF_DIR_ENTRIES; ++i) {
+        root_dir[i].inode_num = 0;  // Initialise an invalid number
+    }
+}
+
+/**
+ * Initialise the free block map.
+ */
+void free_block_map_init() {
+    const uint64_t free = ~((uint64_t) 0);  // Set all bits to 1
+    for (int i = 0; i < FREE_BLOCK_MAP_ARR_SIZE; ++i) {
+        free_block_map[i] = free;
+    }
+}
+
+/**
+ * Initialise the file descriptor table.
+ */
+void file_desc_table_init() {
+    for (int i = 0; i < NUM_OF_INODES; ++i) {
+        file_desc_table[i].inode_num = NUM_OF_INODES; // Initialise an invalid number
+        file_desc_table[i].read_write_ptr = 0;
     }
 }
 
@@ -78,12 +110,28 @@ void read_into_ptr(const inode_t inode, const void *ptr) {
     }
 }
 
-void mksfs(int fresh) {
-    // Initialise file descriptor table to be empty
-    for (int i = 0; i < NUM_OF_INODES; ++i) {
-        file_desc_table[i].inode_num = NUM_OF_INODES; // Initialise an invalid number
-        file_desc_table[i].read_write_ptr = 0;
+/**
+ * Algorithm to make sure that all elements in the root directory are contiguous.
+ * @param left The starting index to scan from.
+ */
+void move_invalid_entries_to_back(int left) {
+    int right = MAX_NUM_OF_DIR_ENTRIES - 1;
+    while (left < right) {
+        while (left < right && root_dir[right].inode_num == 0) {
+            right--;
+        }
+        if (root_dir[left].inode_num == 0) {
+            // swap the two elements
+            const directory_entry_t temp = root_dir[left];
+            root_dir[left] = root_dir[right];
+            root_dir[right] = temp;
+        }
+        left++;
     }
+}
+
+void mksfs(int fresh) {
+    file_desc_table_init();
 
     if (fresh) {
         init_fresh_disk(DISK_NAME, BLOCK_SIZE, TOTAL_NUM_OF_BLOCKS);
@@ -96,6 +144,13 @@ void mksfs(int fresh) {
         // Write the inode table to the disk
         write_blocks(INODE_BLOCKS_OFFSET, NUM_OF_INODE_BLOCKS, inode_table);
 
+        root_dir_init();
+        // Don't need to write it because it is empty at this point,
+        // hence by writing the inodes to the disk this job was done
+
+        free_block_map_init();
+        // Write the free block map to the disk
+        write_blocks(FREE_BITMAP_OFFSET, NUM_OF_FREE_BITMAP_BLOCKS, free_block_map);
     } else {
         init_disk(DISK_NAME, BLOCK_SIZE, TOTAL_NUM_OF_BLOCKS);
         // Read super block into memory
