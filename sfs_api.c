@@ -39,6 +39,21 @@ void super_block_init() {
     super_block.root_dir = 0;
 }
 
+void inode_table_init() {
+    for (int i = 0; i < NUM_OF_INODES; ++i) {
+        inode_t inode = inode_table[i];
+        inode.mode = 0;     // Not sure
+        inode.link_cnt = 0; // Not sure
+        inode.uid = 0;      // Not sure
+        inode.gid = 0;      // Not sure
+        inode.size = 0;
+        inode.indirect = TOTAL_NUM_OF_BLOCKS;
+        for (int j = 0; j < NUM_OF_DATA_PTRS; ++j) {
+            inode.data_ptrs[j] = TOTAL_NUM_OF_BLOCKS;
+        }
+    }
+}
+
 /**
  * Reads the information collected from the inode metadata into the given pointer.
  * @param inode The inode to read from.
@@ -71,10 +86,16 @@ void mksfs(int fresh) {
     }
 
     if (fresh) {
-        super_block_init();
         init_fresh_disk(DISK_NAME, BLOCK_SIZE, TOTAL_NUM_OF_BLOCKS);
+
+        super_block_init();
         // Write the super block to the disk
         write_blocks(0, INODE_BLOCKS_OFFSET, &super_block);
+
+        inode_table_init();
+        // Write the inode table to the disk
+        write_blocks(INODE_BLOCKS_OFFSET, NUM_OF_INODE_BLOCKS, inode_table);
+
     } else {
         init_disk(DISK_NAME, BLOCK_SIZE, TOTAL_NUM_OF_BLOCKS);
         // Read super block into memory
