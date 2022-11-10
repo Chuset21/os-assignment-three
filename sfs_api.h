@@ -5,7 +5,7 @@
 #include <stdint.h>
 
 #define BLOCK_SIZE 1024
-#define INDIRECT_LIST_SIZE (BLOCK_SIZE / 4)
+#define INDIRECT_LIST_SIZE (BLOCK_SIZE / sizeof(uint32_t))
 
 typedef struct super_block_t {
     uint32_t magic;                 // magic number 0xACBD0005
@@ -22,7 +22,7 @@ typedef struct inode_t {
     uint32_t gid;
     uint32_t size;  // This can be used to see how many blocks are occupied (and if it's free)
     uint32_t data_ptrs[12];
-    uint32_t indirect[INDIRECT_LIST_SIZE];
+    uint32_t indirect; // This is a pointer to a data block, which holds pointers to other data blocks, containing the actual data
 } inode_t;
 
 // Use an array of these as our file descriptor table
