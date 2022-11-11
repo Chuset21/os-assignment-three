@@ -28,6 +28,8 @@ inode_t inode_table[NUM_OF_INODES];
 directory_entry_t root_dir[MAX_NUM_OF_DIR_ENTRIES];
 file_descriptor_entry_t file_desc_table[NUM_OF_INODES];
 
+uint32_t current_file_index;
+
 /**
  * Initialise the super block.
  */
@@ -131,6 +133,7 @@ void move_invalid_entries_to_back(int left) {
 }
 
 void mksfs(int fresh) {
+    current_file_index = 0;
     file_desc_table_init();
 
     if (fresh) {
@@ -164,11 +167,38 @@ void mksfs(int fresh) {
     }
 }
 
+/**
+ * Get the next file name.
+ * I chose to reset the current file index to 0 if we reach the end of the directory.
+ * This was done to allow looping.
+ * @param file_name The buffer to copy the file name into
+ * @return 1 if successful, 0 otherwise.
+ */
 int sfs_getnextfilename(char *file_name) {
-    return -1;
+    if (current_file_index >= MAX_NUM_OF_DIR_ENTRIES || root_dir[current_file_index].inode_num == 0) {
+        current_file_index = 0;
+        return 0;
+    }
+
+    strcpy(file_name, root_dir[current_file_index].file_name);
+    current_file_index++;
+
+    return 1;
 }
 
-int sfs_getfilesize(const char *path) {
+/**
+ * Get the file size of a given file.
+ * @param file_name The file to get the size of.
+ * @return The file size in bytes of the given file if the given file exists. Otherwise it returns -1.
+ */
+int sfs_getfilesize(const char *file_name) {
+    for (int i = 0; i < MAX_NUM_OF_DIR_ENTRIES; ++i) {
+        const directory_entry_t dir_entry = root_dir[i];
+        if (dir_entry.inode_num != 0 && strcmp(file_name, dir_entry.file_name) == 0) {
+            return (int) inode_table[dir_entry.inode_num].size;
+        }
+    }
+
     return -1;
 }
 

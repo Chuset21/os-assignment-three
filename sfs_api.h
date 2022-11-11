@@ -6,7 +6,7 @@
 
 #define BLOCK_SIZE 1024
 #define NUM_OF_DATA_PTRS 12
-#define MAX_FILE_NAME_SIZE 16
+#define MAX_FILE_NAME_SIZE 20
 #define INDIRECT_LIST_SIZE (BLOCK_SIZE / sizeof(uint32_t))
 
 typedef struct super_block_t {
