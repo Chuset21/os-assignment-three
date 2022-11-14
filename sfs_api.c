@@ -226,7 +226,7 @@ uint32_t find_inode_num(const char *const file_name, uint32_t *const next_free_i
 int sfs_fopen(char *file_name) {
     uint32_t next_free_idx;
     const uint32_t inode_num = find_inode_num(file_name, &next_free_idx);
-    // TODO rest of function
+    // TODO implement
     return -1;
 }
 
@@ -246,18 +246,41 @@ int sfs_fclose(int fileID) {
 }
 
 int sfs_fwrite(int fileID, const char *buf, int length) {
+    const file_descriptor_entry_t fde = file_desc_table[fileID];
+    if (fde.inode_num == NUM_OF_INODES) {
+        return -1;
+    }
+    // TODO implement
     return -1;
 }
 
 int sfs_fread(int fileID, char *buf, int length) {
+    const file_descriptor_entry_t fde = file_desc_table[fileID];
+    if (fde.inode_num == NUM_OF_INODES) {
+        return -1;
+    }
+    // TODO implement
     return -1;
 }
 
 int sfs_fseek(int fileID, int location) {
-    return -1;
+    file_descriptor_entry_t fde = file_desc_table[fileID];
+    if (fde.inode_num == NUM_OF_INODES) {
+        return -1;
+    } else {
+        fde.read_write_ptr = location;
+        return 0;
+    }
 }
 
 int sfs_remove(char *file_name) {
+    uint32_t next_free_idx;
+    const uint32_t inode_num = find_inode_num(file_name, &next_free_idx);
+    if (inode_num >= MAX_NUM_OF_DIR_ENTRIES) {
+        return -1;
+    }
+    // TODO implement
+
     return -1;
 }
 
