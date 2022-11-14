@@ -202,12 +202,47 @@ int sfs_getfilesize(const char *file_name) {
     return -1;
 }
 
+/**
+ * Find the inode number for a given file name.
+ * @param file_name The file name to check find.
+ * @param next_free_idx A pointer to be populated if the function returns unsuccessfully.
+ * @return The inode number if successful. Return MAX_NUM_OF_DIR_ENTRIES if unsuccessful.
+ * If the file does not exist and the directory is not full populate next_free_idx with the next free index in the root directory.
+ * If the file does not exist and the directory is full populate next_free_idx with MAX_NUM_OF_DIR_ENTRIES to signal failure.
+ */
+uint32_t find_inode_num(const char *const file_name, uint32_t *const next_free_idx) {
+    uint32_t i;
+    for (i = 0; i < MAX_NUM_OF_DIR_ENTRIES && root_dir[i].inode_num != 0; ++i) {
+        const directory_entry_t dir_entry = root_dir[i];
+        if (strcmp(dir_entry.file_name, file_name) == 0) {
+            return dir_entry.inode_num;
+        }
+    }
+
+    *next_free_idx = i < MAX_NUM_OF_DIR_ENTRIES ? i : MAX_NUM_OF_DIR_ENTRIES;
+    return MAX_NUM_OF_DIR_ENTRIES;
+}
+
 int sfs_fopen(char *file_name) {
+    uint32_t next_free_idx;
+    const uint32_t inode_num = find_inode_num(file_name, &next_free_idx);
+    // TODO rest of function
     return -1;
 }
 
 int sfs_fclose(int fileID) {
-    return -1;
+    if (0 > fileID || fileID >= NUM_OF_INODES) {
+        return -1;
+    }
+
+    file_descriptor_entry_t fde = file_desc_table[fileID];
+    if (fde.inode_num >= NUM_OF_INODES) {
+        return -1;
+    } else {
+        fde.inode_num = NUM_OF_INODES;
+        fde.read_write_ptr = 0;
+        return 0;
+    }
 }
 
 int sfs_fwrite(int fileID, const char *buf, int length) {
