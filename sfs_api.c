@@ -247,7 +247,7 @@ int sfs_fclose(int fileID) {
 
 int sfs_fwrite(int fileID, const char *buf, int length) {
     const file_descriptor_entry_t fde = file_desc_table[fileID];
-    if (fde.inode_num == NUM_OF_INODES) {
+    if (fde.inode_num >= NUM_OF_INODES) {
         return -1;
     }
     // TODO implement
@@ -256,7 +256,7 @@ int sfs_fwrite(int fileID, const char *buf, int length) {
 
 int sfs_fread(int fileID, char *buf, int length) {
     const file_descriptor_entry_t fde = file_desc_table[fileID];
-    if (fde.inode_num == NUM_OF_INODES) {
+    if (fde.inode_num >= NUM_OF_INODES) {
         return -1;
     }
     // TODO implement
@@ -265,7 +265,7 @@ int sfs_fread(int fileID, char *buf, int length) {
 
 int sfs_fseek(int fileID, int location) {
     file_descriptor_entry_t fde = file_desc_table[fileID];
-    if (fde.inode_num == NUM_OF_INODES) {
+    if (fde.inode_num >= NUM_OF_INODES) {
         return -1;
     } else {
         fde.read_write_ptr = location;
