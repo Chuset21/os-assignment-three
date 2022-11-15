@@ -439,22 +439,24 @@ int sfs_fwrite(int fileID, char *buf, int length) {
 
     const int blocks_used = CEIL(inode_table[fde.inode_num].size, BLOCK_SIZE);
     const uint32_t start_block = fde.read_write_ptr / BLOCK_SIZE;
-    int result = 0;
+    uint32_t result = 0;
     for (uint32_t i = start_block;
-         i < NUM_OF_DATA_PTRS && i < blocks_used && result < length; ++i, result += BLOCK_SIZE) {
+         i < NUM_OF_DATA_PTRS && i < blocks_used && result < length; ++i) {
 
         if (i == prev_last_block && prev_num_blocks == blocks_used) {
             // It's the piece of data where some needs to be overwritten
             char temp_buf[BLOCK_SIZE];
             read_blocks(DATA_BLOCKS_OFFSET + inode_table[fde.inode_num].data_ptrs[i], 1, temp_buf);
-            strncpy(buf + ((i + NUM_OF_DATA_PTRS) * BLOCK_SIZE), temp_buf, (fde.read_write_ptr + result) % BLOCK_SIZE);
+            strncpy(temp_buf, buf + result, (fde.read_write_ptr + result) % BLOCK_SIZE);
             write_blocks(DATA_BLOCKS_OFFSET + inode_table[fde.inode_num].data_ptrs[i], 1,
-                         buf + ((i + NUM_OF_DATA_PTRS) * BLOCK_SIZE));
+                         temp_buf);
         } else {
             // Normal write
             write_blocks(DATA_BLOCKS_OFFSET + inode_table[fde.inode_num].data_ptrs[i], 1,
-                         buf + (i * BLOCK_SIZE));
+                         buf + result);
         }
+        const uint32_t len = strnlen(buf + result, BLOCK_SIZE);
+        result += len;
     }
     if (blocks_used > NUM_OF_DATA_PTRS && result < length) {
         const uint32_t num_of_ptrs = blocks_used - NUM_OF_DATA_PTRS;
@@ -462,26 +464,25 @@ int sfs_fwrite(int fileID, char *buf, int length) {
         // Getting the indirect pointers
         read_blocks(DATA_BLOCKS_OFFSET + inode_table[fde.inode_num].indirect, 1, ptrs);
         for (uint32_t i = start_block >= NUM_OF_DATA_PTRS ? start_block : 0;
-             i < num_of_ptrs && result < length;
-             ++i, result += BLOCK_SIZE) {
+             i < num_of_ptrs && result < length; ++i) {
+
             if (i + NUM_OF_DATA_PTRS == prev_last_block && prev_num_blocks == blocks_used) {
                 // It's the piece of data where some needs to be overwritten
                 char temp_buf[BLOCK_SIZE];
                 read_blocks(DATA_BLOCKS_OFFSET + ptrs[i], 1, temp_buf);
-                strncpy(buf + ((i + NUM_OF_DATA_PTRS) * BLOCK_SIZE), temp_buf,
-                        (fde.read_write_ptr + result) % BLOCK_SIZE);
-                write_blocks(DATA_BLOCKS_OFFSET + ptrs[i], 1,
-                             buf + ((i + NUM_OF_DATA_PTRS) * BLOCK_SIZE));
+                strncpy(temp_buf, buf + result, (fde.read_write_ptr + result) % BLOCK_SIZE);
+                write_blocks(DATA_BLOCKS_OFFSET + ptrs[i], 1, temp_buf);
             } else {
                 // Normal write
-                write_blocks(DATA_BLOCKS_OFFSET + ptrs[i], 1,
-                             buf + ((i + NUM_OF_DATA_PTRS) * BLOCK_SIZE));
+                write_blocks(DATA_BLOCKS_OFFSET + ptrs[i], 1, buf + result);
             }
+            const uint32_t len = strnlen(buf + result, BLOCK_SIZE);
+            result += len;
         }
     }
 
     file_desc_table[fileID].read_write_ptr += result;
-    return result;
+    return (int) result;
 }
 
 int sfs_fread(int fileID, char *buf, int length) {
@@ -497,29 +498,37 @@ int sfs_fread(int fileID, char *buf, int length) {
 
     const int blocks_used = CEIL(inode.size, BLOCK_SIZE);
     const uint32_t start_block = fde.read_write_ptr / BLOCK_SIZE;
-    int result = 0;
+    uint32_t result = 0;
     for (uint32_t i = start_block;
-         i < NUM_OF_DATA_PTRS && i < blocks_used && result < length; ++i, result += BLOCK_SIZE) {
-        // Read each data block one by one into the pointer
-        read_blocks(DATA_BLOCKS_OFFSET + inode.data_ptrs[i], 1,
-                    buf + (i * BLOCK_SIZE));
+         i < NUM_OF_DATA_PTRS && i < blocks_used && result < length; ++i) {
+        // Read each data block one by one
+        char temp_buf[BLOCK_SIZE];
+        read_blocks(DATA_BLOCKS_OFFSET + inode.data_ptrs[i], 1, temp_buf);
+
+        const uint32_t diff = length - result;
+        const uint32_t bytes_read = diff > BLOCK_SIZE ? BLOCK_SIZE : diff;
+        strncpy(buf + result, temp_buf, bytes_read);
+        result += bytes_read;
     }
     if (blocks_used > NUM_OF_DATA_PTRS && result < length) {
         const uint32_t num_of_ptrs = blocks_used - NUM_OF_DATA_PTRS;
         uint32_t ptrs[INDIRECT_LIST_SIZE];
         // Getting the indirect pointers
         read_blocks(DATA_BLOCKS_OFFSET + inode.indirect, 1, ptrs);
-        // Read each data block one by one into the pointer
-        for (uint32_t i = start_block >= NUM_OF_DATA_PTRS ? start_block : 0;
-             i < num_of_ptrs && result < length;
-             ++i, result += BLOCK_SIZE) {
-            read_blocks(DATA_BLOCKS_OFFSET + ptrs[i], 1,
-                        buf + ((i + NUM_OF_DATA_PTRS) * BLOCK_SIZE));
+        // Read each data block one by one
+        for (uint32_t i = start_block >= NUM_OF_DATA_PTRS ? start_block : 0; i < num_of_ptrs && result < length; ++i) {
+            char temp_buf[BLOCK_SIZE];
+            read_blocks(DATA_BLOCKS_OFFSET + ptrs[i], 1, temp_buf);
+
+            const uint32_t diff = length - result;
+            const uint32_t bytes_read = diff > BLOCK_SIZE ? BLOCK_SIZE : diff;
+            strncpy(buf + result, temp_buf, bytes_read);
+            result += bytes_read;
         }
     }
 
     file_desc_table[fileID].read_write_ptr += result;
-    return result;
+    return (int) result;
 }
 
 int sfs_fseek(int fileID, int location) {
