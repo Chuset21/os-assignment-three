@@ -140,8 +140,8 @@ void write_from_ptr(const inode_t inode, const void *ptr) {
  * Algorithm to make sure that all elements in the root directory are contiguous.
  * @param left The starting index to scan from.
  */
-void move_invalid_entries_to_back(int left) {
-    int right = MAX_NUM_OF_DIR_ENTRIES - 1;
+void move_invalid_entries_to_back(uint32_t left) {
+    uint32_t right = MAX_NUM_OF_DIR_ENTRIES - 1;
     while (left < right) {
         while (left < right && root_dir[right].inode_num == 0) {
             right--;
@@ -228,21 +228,22 @@ int sfs_getfilesize(const char *file_name) {
 /**
  * Find the inode number for a given file name.
  * @param file_name The file name to check find.
- * @param next_free_idx A pointer to be populated if the function returns unsuccessfully.
- * @return The inode number if successful. Return MAX_NUM_OF_DIR_ENTRIES if unsuccessful.
- * If the file does not exist and the directory is not full populate next_free_idx with the next free index in the root directory.
- * If the file does not exist and the directory is full populate next_free_idx with MAX_NUM_OF_DIR_ENTRIES to signal failure.
+ * @param idx A pointer to be populated by a directory index.
+ * @return The inode number if successful and populate idx with the root directory index number. Return MAX_NUM_OF_DIR_ENTRIES if unsuccessful.
+ * If the file does not exist and the directory is not full populate idx with the next free index in the root directory.
+ * If the file does not exist and the directory is full populate idx with MAX_NUM_OF_DIR_ENTRIES to signal failure.
  */
-uint32_t find_inode_num(const char *const file_name, uint32_t *const next_free_idx) {
+uint32_t find_inode_num(const char *const file_name, uint32_t *const idx) {
     uint32_t i;
     for (i = 0; i < MAX_NUM_OF_DIR_ENTRIES && root_dir[i].inode_num != 0; ++i) {
         const directory_entry_t dir_entry = root_dir[i];
         if (strcmp(dir_entry.file_name, file_name) == 0) {
+            *idx = i;
             return dir_entry.inode_num;
         }
     }
 
-    *next_free_idx = i < MAX_NUM_OF_DIR_ENTRIES ? i : MAX_NUM_OF_DIR_ENTRIES;
+    *idx = i < MAX_NUM_OF_DIR_ENTRIES ? i : MAX_NUM_OF_DIR_ENTRIES;
     return MAX_NUM_OF_DIR_ENTRIES;
 }
 
@@ -308,6 +309,7 @@ int sfs_fopen(char *file_name) {
             strcpy(dir_entry.file_name, file_name);
             // Set inode size to 0
             inode_table[inode_num].size = 0;
+
             inode_t root_inode = inode_table[super_block.root_dir];
             root_inode.size += sizeof(directory_entry_t);
             write_from_ptr(root_inode, root_dir);
@@ -336,6 +338,28 @@ int sfs_fclose(int fileID) {
         fde.read_write_ptr = 0;
         return 0;
     }
+}
+
+/**
+ * Clear a given bit from the free bitmap.
+ * @param bit bit to clear.
+ */
+void clear_bit(uint32_t bit) {
+    const uint32_t arr_idx = bit / sizeof(uint64_t);
+    const uint32_t bit_idx = bit % sizeof(uint64_t);
+    // Clear the bit
+    free_block_map[arr_idx] &= ~(((uint64_t) 1) << bit_idx);
+}
+
+/**
+ * Set a given bit from the free bitmap.
+ * @param bit bit to set.
+ */
+void set_bit(uint32_t bit) {
+    const uint32_t arr_idx = bit / sizeof(uint64_t);
+    const uint32_t bit_idx = bit % sizeof(uint64_t);
+    // Set the bit
+    free_block_map[arr_idx] |= (((uint64_t) 1) << bit_idx);
 }
 
 int sfs_fwrite(int fileID, const char *buf, int length) {
@@ -378,14 +402,46 @@ int sfs_fseek(int fileID, int location) {
     }
 }
 
+/**
+ * Release the data blocks held by the given inode.
+ * @param inode The inode for which the data blocks must be released.
+ */
+void release_data_blocks(const inode_t inode) {
+    const int blocks_used = CEIL(inode.size, BLOCK_SIZE);
+    for (int i = 0; i < NUM_OF_DATA_PTRS && i < blocks_used; ++i) {
+        set_bit(inode.data_ptrs[i]);
+    }
+    if (blocks_used > NUM_OF_DATA_PTRS) {
+        const uint32_t num_of_ptrs = blocks_used - NUM_OF_DATA_PTRS;
+        uint32_t ptrs[INDIRECT_LIST_SIZE];
+        // Getting the indirect pointers
+        read_blocks(DATA_BLOCKS_OFFSET + inode.indirect, 1, ptrs);
+        for (int i = 0; i < num_of_ptrs; ++i) {
+            set_bit(inode.data_ptrs[i]);
+        }
+    }
+}
+
 int sfs_remove(char *file_name) {
-    uint32_t next_free_idx;
-    const uint32_t inode_num = find_inode_num(file_name, &next_free_idx);
+    uint32_t idx;
+    const uint32_t inode_num = find_inode_num(file_name, &idx);
     if (inode_num >= MAX_NUM_OF_DIR_ENTRIES) {
         return -1;
     }
-    // TODO implement
+    // Remove the entry from the root directory
+    root_dir[idx].inode_num = 0;
+    move_invalid_entries_to_back(idx);
+    inode_t root = inode_table[super_block.root_dir];
+    root.size -= sizeof(directory_entry_t);
+    write_from_ptr(root, root_dir);
 
-    return -1;
+    // Release the data blocks
+    inode_t inode = inode_table[inode_num];
+    release_data_blocks(inode);
+
+    // Release the inode
+    inode.size = 0;
+
+    return 0;
 }
 
