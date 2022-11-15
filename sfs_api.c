@@ -112,6 +112,31 @@ void read_into_ptr(const inode_t inode, const void *ptr) {
 }
 
 /**
+ * Writes the information in the given pointer into the blocks that the inode points to.
+ * @param inode The inode to write into.
+ * @param ptr The pointer to write from.
+ */
+void write_from_ptr(const inode_t inode, const void *ptr) {
+    const int blocks_used = CEIL(inode.size, BLOCK_SIZE);
+    for (int i = 0; i < NUM_OF_DATA_PTRS && i < blocks_used; ++i) {
+        // Read each data block one by one into the pointer
+        write_blocks(DATA_BLOCKS_OFFSET + inode.data_ptrs[i], 1,
+                     ((uint8_t *) ptr) + (i * BLOCK_SIZE)); // Use uint8_t instead of void for pointer arithmetic
+    }
+    if (blocks_used > NUM_OF_DATA_PTRS) {
+        const uint32_t num_of_ptrs = blocks_used - NUM_OF_DATA_PTRS;
+        uint32_t ptrs[INDIRECT_LIST_SIZE];
+        // Getting the indirect pointers
+        write_blocks(DATA_BLOCKS_OFFSET + inode.indirect, 1, ptrs);
+        // Read each data block one by one into the pointer
+        for (int i = 0; i < num_of_ptrs; ++i) {
+            write_blocks(DATA_BLOCKS_OFFSET + ptrs[i], 1,
+                         ((uint8_t *) ptr) + ((i + NUM_OF_DATA_PTRS) * BLOCK_SIZE));
+        }
+    }
+}
+
+/**
  * Algorithm to make sure that all elements in the root directory are contiguous.
  * @param left The starting index to scan from.
  */
@@ -147,8 +172,7 @@ void mksfs(int fresh) {
         write_blocks(INODE_BLOCKS_OFFSET, NUM_OF_INODE_BLOCKS, inode_table);
 
         root_dir_init();
-        // Don't need to write it because it is empty at this point,
-        // hence by writing the inodes to the disk this job was done
+        write_from_ptr(inode_table[super_block.root_dir], root_dir);
 
         free_block_map_init();
         // Write the free block map to the disk
@@ -284,7 +308,11 @@ int sfs_fopen(char *file_name) {
             strcpy(dir_entry.file_name, file_name);
             // Set inode size to 0
             inode_table[inode_num].size = 0;
-            // TODO copy directory into hard disk
+            inode_t root_inode = inode_table[super_block.root_dir];
+            root_inode.size += sizeof(directory_entry_t);
+            write_from_ptr(root_inode, root_dir);
+            // This could be changed to be more efficient, instead of writing all the inodes
+            write_blocks(INODE_BLOCKS_OFFSET, NUM_OF_INODE_BLOCKS, inode_table);
         } else {
             return -1;
         }
