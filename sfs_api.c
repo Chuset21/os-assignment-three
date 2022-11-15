@@ -431,27 +431,29 @@ int sfs_fwrite(int fileID, char *buf, int length) {
         return 0;
     }
 
+    const uint32_t prev_last_block = inode_table[fde.inode_num].size / BLOCK_SIZE;
+    const uint32_t prev_num_blocks = CEIL(inode_table[fde.inode_num].size, BLOCK_SIZE);
     if (!allocate_data_blocks_for_inode(fde.read_write_ptr + length, &inode_table[fde.inode_num])) {
         return 0;
     }
 
     const int blocks_used = CEIL(inode_table[fde.inode_num].size, BLOCK_SIZE);
     const uint32_t start_block = fde.read_write_ptr / BLOCK_SIZE;
-    const uint32_t partial_overwrite_point = length - BLOCK_SIZE;
     int result = 0;
     for (uint32_t i = start_block;
          i < NUM_OF_DATA_PTRS && i < blocks_used && result < length; ++i, result += BLOCK_SIZE) {
-        // Normal write
-        if (result < partial_overwrite_point) {
-            write_blocks(DATA_BLOCKS_OFFSET + inode_table[fde.inode_num].data_ptrs[i], 1,
-                         buf + (i * BLOCK_SIZE));
-        } else {
+
+        if (i == prev_last_block && prev_num_blocks == blocks_used) {
             // It's the piece of data where some needs to be overwritten
             char temp_buf[BLOCK_SIZE];
             read_blocks(DATA_BLOCKS_OFFSET + inode_table[fde.inode_num].data_ptrs[i], 1, temp_buf);
             strncpy(buf + ((i + NUM_OF_DATA_PTRS) * BLOCK_SIZE), temp_buf, (fde.read_write_ptr + result) % BLOCK_SIZE);
             write_blocks(DATA_BLOCKS_OFFSET + inode_table[fde.inode_num].data_ptrs[i], 1,
                          buf + ((i + NUM_OF_DATA_PTRS) * BLOCK_SIZE));
+        } else {
+            // Normal write
+            write_blocks(DATA_BLOCKS_OFFSET + inode_table[fde.inode_num].data_ptrs[i], 1,
+                         buf + (i * BLOCK_SIZE));
         }
     }
     if (blocks_used > NUM_OF_DATA_PTRS && result < length) {
@@ -462,16 +464,16 @@ int sfs_fwrite(int fileID, char *buf, int length) {
         for (uint32_t i = start_block >= NUM_OF_DATA_PTRS ? start_block : 0;
              i < num_of_ptrs && result < length;
              ++i, result += BLOCK_SIZE) {
-            // Normal write
-            if (result < partial_overwrite_point) {
-                write_blocks(DATA_BLOCKS_OFFSET + ptrs[i], 1,
-                             buf + ((i + NUM_OF_DATA_PTRS) * BLOCK_SIZE));
-            } else {
+            if (i + NUM_OF_DATA_PTRS == prev_last_block && prev_num_blocks == blocks_used) {
                 // It's the piece of data where some needs to be overwritten
                 char temp_buf[BLOCK_SIZE];
                 read_blocks(DATA_BLOCKS_OFFSET + ptrs[i], 1, temp_buf);
                 strncpy(buf + ((i + NUM_OF_DATA_PTRS) * BLOCK_SIZE), temp_buf,
                         (fde.read_write_ptr + result) % BLOCK_SIZE);
+                write_blocks(DATA_BLOCKS_OFFSET + ptrs[i], 1,
+                             buf + ((i + NUM_OF_DATA_PTRS) * BLOCK_SIZE));
+            } else {
+                // Normal write
                 write_blocks(DATA_BLOCKS_OFFSET + ptrs[i], 1,
                              buf + ((i + NUM_OF_DATA_PTRS) * BLOCK_SIZE));
             }
