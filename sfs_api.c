@@ -1,6 +1,4 @@
-#include <stdlib.h>
 #include <string.h>
-#include <printf.h>
 #include "sfs_api.h"
 #include "disk_emu.h"
 
@@ -223,10 +221,36 @@ uint32_t find_inode_num(const char *const file_name, uint32_t *const next_free_i
     return MAX_NUM_OF_DIR_ENTRIES;
 }
 
+/**
+ * Get the next file descriptor index and populate the given entry.
+ * @param inode_num The inode number to populate with.
+ * @param read_write_ptr The read and write pointer to populate with.
+ * @return The index of the new file descriptor entry if successful. -1 if unsuccessful.
+ */
+int get_next_file_desc_idx(uint32_t inode_num, uint32_t read_write_ptr) {
+    int i;
+    for (i = 0; i < NUM_OF_INODES; ++i) {
+        file_descriptor_entry_t fde = file_desc_table[i];
+        if (fde.inode_num >= NUM_OF_INODES) {
+            fde.inode_num = inode_num;
+            fde.read_write_ptr = read_write_ptr;
+            return i;
+        }
+    }
+
+    return -1;
+}
+
 int sfs_fopen(char *file_name) {
     uint32_t next_free_idx;
     const uint32_t inode_num = find_inode_num(file_name, &next_free_idx);
     // TODO implement
+    // If it exists
+    if (inode_num < MAX_NUM_OF_DIR_ENTRIES) {
+        // Need to get the actual i_node
+    } else {
+        // It doesn't exist, it needs to be created
+    }
     return -1;
 }
 
