@@ -339,6 +339,10 @@ int sfs_fclose(int fileID) {
 }
 
 int sfs_fwrite(int fileID, const char *buf, int length) {
+    if (0 > fileID || fileID >= NUM_OF_INODES) {
+        return -1;
+    }
+
     const file_descriptor_entry_t fde = file_desc_table[fileID];
     if (fde.inode_num >= NUM_OF_INODES) {
         return -1;
@@ -348,6 +352,10 @@ int sfs_fwrite(int fileID, const char *buf, int length) {
 }
 
 int sfs_fread(int fileID, char *buf, int length) {
+    if (0 > fileID || fileID >= NUM_OF_INODES) {
+        return -1;
+    }
+
     const file_descriptor_entry_t fde = file_desc_table[fileID];
     if (fde.inode_num >= NUM_OF_INODES) {
         return -1;
@@ -357,6 +365,10 @@ int sfs_fread(int fileID, char *buf, int length) {
 }
 
 int sfs_fseek(int fileID, int location) {
+    if (0 > fileID || fileID >= NUM_OF_INODES) {
+        return -1;
+    }
+
     file_descriptor_entry_t fde = file_desc_table[fileID];
     if (fde.inode_num >= NUM_OF_INODES) {
         return -1;
