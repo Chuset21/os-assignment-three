@@ -433,18 +433,18 @@ bool allocate_data_blocks_for_inode(uint32_t final_size, inode_t inode) {
 
 int sfs_fwrite(int fileID, const char *buf, int length) {
     if (0 > fileID || fileID >= NUM_OF_INODES) {
-        return -1;
+        return 0;
     }
 
     file_descriptor_entry_t fde = file_desc_table[fileID];
     if (fde.inode_num >= NUM_OF_INODES) {
-        return -1;
+        return 0;
     }
     inode_t inode = inode_table[fde.inode_num];
 
     const uint32_t final_rw_ptr = fde.read_write_ptr + length;
     if (!allocate_data_blocks_for_inode(final_rw_ptr, inode)) {
-        return -1;
+        return 0;
     }
 
     // TODO implement
@@ -455,43 +455,40 @@ int sfs_fwrite(int fileID, const char *buf, int length) {
 
 int sfs_fread(int fileID, char *buf, int length) {
     if (0 > fileID || fileID >= NUM_OF_INODES) {
-        return -1;
+        return 0;
     }
 
     file_descriptor_entry_t fde = file_desc_table[fileID];
     if (fde.inode_num >= NUM_OF_INODES) {
-        return -1;
+        return 0;
     }
     const inode_t inode = inode_table[fde.inode_num];
 
     const int blocks_used = CEIL(inode.size, BLOCK_SIZE);
     const uint32_t start_block = fde.read_write_ptr / BLOCK_SIZE;
-    int length_left = length;
+    int result = 0;
     for (uint32_t i = start_block;
-         i < NUM_OF_DATA_PTRS && i < blocks_used && length_left > 0; ++i, length_left -= BLOCK_SIZE) {
+         i < NUM_OF_DATA_PTRS && i < blocks_used && result < length; ++i, result += BLOCK_SIZE) {
         // Read each data block one by one into the pointer
         read_blocks(DATA_BLOCKS_OFFSET + inode.data_ptrs[i], 1,
                     ((uint8_t *) buf) + (i * BLOCK_SIZE)); // Use uint8_t instead of void for pointer arithmetic
     }
-    if (blocks_used > NUM_OF_DATA_PTRS && length_left > 0) {
+    if (blocks_used > NUM_OF_DATA_PTRS && result < length) {
         const uint32_t num_of_ptrs = blocks_used - NUM_OF_DATA_PTRS;
         uint32_t ptrs[INDIRECT_LIST_SIZE];
         // Getting the indirect pointers
         read_blocks(DATA_BLOCKS_OFFSET + inode.indirect, 1, ptrs);
         // Read each data block one by one into the pointer
         for (uint32_t i = start_block >= NUM_OF_DATA_PTRS ? start_block : 0;
-             i < num_of_ptrs && length_left > 0;
-             ++i, length_left -= BLOCK_SIZE) {
+             i < num_of_ptrs && result < length;
+             ++i, result += BLOCK_SIZE) {
             read_blocks(DATA_BLOCKS_OFFSET + ptrs[i], 1,
                         ((uint8_t *) buf) + ((i + NUM_OF_DATA_PTRS) * BLOCK_SIZE));
         }
     }
-    if (length_left > 0) {
-        return -1;
-    }
 
-    fde.read_write_ptr += length;
-    return length;
+    fde.read_write_ptr += result;
+    return result;
 }
 
 int sfs_fseek(int fileID, int location) {
