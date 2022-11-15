@@ -558,9 +558,8 @@ int sfs_remove(char *file_name) {
     // Remove the entry from the root directory
     root_dir[idx].inode_num = 0;
     move_invalid_entries_to_back(idx);
-    inode_t root = inode_table[super_block.root_dir];
-    root.size -= sizeof(directory_entry_t);
-    write_from_ptr(root, root_dir);
+    inode_table[super_block.root_dir].size -= sizeof(directory_entry_t);
+    write_from_ptr(inode_table[super_block.root_dir], root_dir);
 
     // Release the data blocks
     release_data_blocks(inode_table[inode_num]);
