@@ -371,6 +371,7 @@ int sfs_fwrite(int fileID, const char *buf, int length) {
     if (fde.inode_num >= NUM_OF_INODES) {
         return -1;
     }
+    const inode_t inode = inode_table[fde.inode_num];
     // TODO implement
     return -1;
 }
@@ -384,6 +385,7 @@ int sfs_fread(int fileID, char *buf, int length) {
     if (fde.inode_num >= NUM_OF_INODES) {
         return -1;
     }
+    const inode_t inode = inode_table[fde.inode_num];
     // TODO implement
     return -1;
 }
@@ -438,9 +440,11 @@ int sfs_remove(char *file_name) {
     // Release the data blocks
     inode_t inode = inode_table[inode_num];
     release_data_blocks(inode);
+    write_blocks(FREE_BITMAP_OFFSET, NUM_OF_FREE_BITMAP_BLOCKS, free_block_map);
 
     // Release the inode
     inode.size = 0;
+    write_blocks(INODE_BLOCKS_OFFSET, NUM_OF_INODE_BLOCKS, inode_table);
 
     return 0;
 }
