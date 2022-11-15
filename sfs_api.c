@@ -44,15 +44,14 @@ void super_block_init() {
  */
 void inode_table_init() {
     for (int i = 0; i < NUM_OF_INODES; ++i) {
-        inode_t inode = inode_table[i];
-        inode.mode = 0;     // Not sure
-        inode.link_cnt = 0; // Not sure
-        inode.uid = 0;      // Not sure
-        inode.gid = 0;      // Not sure
-        inode.size = 0;
-        inode.indirect = NUM_OF_DATA_BLOCKS;  // Initialise an invalid number
+        inode_table[i].mode = 0;     // Not sure
+        inode_table[i].link_cnt = 0; // Not sure
+        inode_table[i].uid = 0;      // Not sure
+        inode_table[i].gid = 0;      // Not sure
+        inode_table[i].size = 0;
+        inode_table[i].indirect = NUM_OF_DATA_BLOCKS;  // Initialise an invalid number
         for (int j = 0; j < NUM_OF_DATA_PTRS; ++j) {
-            inode.data_ptrs[j] = NUM_OF_DATA_BLOCKS;  // Initialise an invalid number
+            inode_table[i].data_ptrs[j] = NUM_OF_DATA_BLOCKS;  // Initialise an invalid number
         }
     }
 }
@@ -256,10 +255,9 @@ uint32_t find_inode_num(const char *const file_name, uint32_t *const idx) {
 int get_next_file_desc_idx(uint32_t inode_num, uint32_t read_write_ptr) {
     int i;
     for (i = 0; i < NUM_OF_INODES; ++i) {
-        file_descriptor_entry_t fde = file_desc_table[i];
-        if (fde.inode_num >= NUM_OF_INODES) {
-            fde.inode_num = inode_num;
-            fde.read_write_ptr = read_write_ptr;
+        if (file_desc_table[i].inode_num >= NUM_OF_INODES) {
+            file_desc_table[i].inode_num = inode_num;
+            file_desc_table[i].read_write_ptr = read_write_ptr;
             return i;
         }
     }
@@ -276,7 +274,7 @@ int get_next_file_desc_idx(uint32_t inode_num, uint32_t read_write_ptr) {
 uint32_t get_lowest_inode_num() {
     bool is_taken[MAX_NUM_OF_DIR_ENTRIES + 1];
     uint32_t i;
-    for (i = 0; i < MAX_NUM_OF_DIR_ENTRIES; ++i) {
+    for (i = 1; i < MAX_NUM_OF_DIR_ENTRIES; ++i) {
         is_taken[i] = false;
     }
 
@@ -304,15 +302,13 @@ int sfs_fopen(char *file_name) {
                 return -1;
             }
 
-            directory_entry_t dir_entry = root_dir[next_free_idx];
-            dir_entry.inode_num = inode_num;
-            strcpy(dir_entry.file_name, file_name);
+            root_dir[next_free_idx].inode_num = inode_num;
+            strcpy(root_dir[next_free_idx].file_name, file_name);
             // Set inode size to 0
             inode_table[inode_num].size = 0;
 
-            inode_t root_inode = inode_table[super_block.root_dir];
-            root_inode.size += sizeof(directory_entry_t);
-            write_from_ptr(root_inode, root_dir);
+            inode_table[super_block.root_dir].size += sizeof(directory_entry_t);
+            write_from_ptr(inode_table[super_block.root_dir], root_dir);
             // This could be changed to be more efficient, instead of writing all the inodes
             write_blocks(INODE_BLOCKS_OFFSET, NUM_OF_INODE_BLOCKS, inode_table);
         } else {
@@ -320,24 +316,18 @@ int sfs_fopen(char *file_name) {
         }
     }
 
-    const inode_t inode = inode_table[inode_num];
-    const int result = get_next_file_desc_idx(inode_num, inode.size);
+    const int result = get_next_file_desc_idx(inode_num, inode_table[inode_num].size);
     return result;
 }
 
 int sfs_fclose(int fileID) {
-    if (0 > fileID || fileID >= NUM_OF_INODES) {
+    if (0 > fileID || fileID >= NUM_OF_INODES || file_desc_table[fileID].inode_num >= NUM_OF_INODES) {
         return -1;
     }
 
-    file_descriptor_entry_t fde = file_desc_table[fileID];
-    if (fde.inode_num >= NUM_OF_INODES) {
-        return -1;
-    } else {
-        fde.inode_num = NUM_OF_INODES;
-        fde.read_write_ptr = 0;
-        return 0;
-    }
+    file_desc_table[fileID].inode_num = NUM_OF_INODES;
+    file_desc_table[fileID].read_write_ptr = 0;
+    return 0;
 }
 
 /**
@@ -377,10 +367,10 @@ uint32_t allocate_data_block() {
  * @param inode The inode to allocate data blocks for.
  * @return True if successful, false if unsuccessful.
  */
-bool allocate_data_blocks_for_inode(uint32_t final_size, inode_t inode) {
-    if (final_size > inode.size) {
+bool allocate_data_blocks_for_inode(uint32_t final_size, inode_t *const inode) {
+    if (final_size > inode->size) {
         // Number of blocks to allocate
-        const uint32_t blocks_used = CEIL(inode.size, BLOCK_SIZE);
+        const uint32_t blocks_used = CEIL(inode->size, BLOCK_SIZE);
         const uint32_t final_blocks_used = CEIL(final_size, BLOCK_SIZE);
         // If that many blocks cannot be allocated return false
         if (final_blocks_used > MAX_DATA_BLOCKS_FOR_FILE) {
@@ -393,7 +383,7 @@ bool allocate_data_blocks_for_inode(uint32_t final_size, inode_t inode) {
             if (data_block_num >= NUM_OF_DATA_BLOCKS) {
                 return false;
             }
-            inode.data_ptrs[i] = data_block_num;
+            inode->data_ptrs[i] = data_block_num;
         }
         if (final_blocks_used > NUM_OF_DATA_PTRS) {
             const uint32_t start = blocks_used > NUM_OF_DATA_PTRS ? blocks_used - NUM_OF_DATA_PTRS - 1 : 0;
@@ -401,14 +391,14 @@ bool allocate_data_blocks_for_inode(uint32_t final_size, inode_t inode) {
             uint32_t ptrs[INDIRECT_LIST_SIZE];
             if (start > 0) {
                 // Getting the indirect pointers
-                read_blocks(DATA_BLOCKS_OFFSET + inode.indirect, 1, ptrs);
+                read_blocks(DATA_BLOCKS_OFFSET + inode->indirect, 1, ptrs);
             } else {
                 // Allocate a data block for the indirect pointers
                 const uint32_t data_block_num = allocate_data_block();
                 if (data_block_num >= NUM_OF_DATA_BLOCKS) {
                     return false;
                 }
-                inode.indirect = data_block_num;
+                inode->indirect = data_block_num;
             }
             // Update the indirect pointer list
             for (i = start; i < limit && i < INDIRECT_LIST_SIZE; ++i) {
@@ -419,10 +409,10 @@ bool allocate_data_blocks_for_inode(uint32_t final_size, inode_t inode) {
                 ptrs[i] = data_block_num;
             }
             // Write the new indirect pinter list to the disk
-            write_blocks(DATA_BLOCKS_OFFSET + inode.indirect, 1, ptrs);
+            write_blocks(DATA_BLOCKS_OFFSET + inode->indirect, 1, ptrs);
         }
         // Update the size of the inode
-        inode.size = final_size;
+        inode->size = final_size;
         // Write inode to disk
         write_blocks(INODE_BLOCKS_OFFSET, NUM_OF_INODE_BLOCKS, inode_table);
         // Write free bitmap to disk
@@ -436,17 +426,16 @@ int sfs_fwrite(int fileID, char *buf, int length) {
         return 0;
     }
 
-    file_descriptor_entry_t fde = file_desc_table[fileID];
+    const file_descriptor_entry_t fde = file_desc_table[fileID];
     if (fde.inode_num >= NUM_OF_INODES) {
         return 0;
     }
-    inode_t inode = inode_table[fde.inode_num];
 
-    if (!allocate_data_blocks_for_inode(fde.read_write_ptr + length, inode)) {
+    if (!allocate_data_blocks_for_inode(fde.read_write_ptr + length, &inode_table[fde.inode_num])) {
         return 0;
     }
 
-    const int blocks_used = CEIL(inode.size, BLOCK_SIZE);
+    const int blocks_used = CEIL(inode_table[fde.inode_num].size, BLOCK_SIZE);
     const uint32_t start_block = fde.read_write_ptr / BLOCK_SIZE;
     const uint32_t partial_overwrite_point = length - BLOCK_SIZE;
     int result = 0;
@@ -454,14 +443,14 @@ int sfs_fwrite(int fileID, char *buf, int length) {
          i < NUM_OF_DATA_PTRS && i < blocks_used && result < length; ++i, result += BLOCK_SIZE) {
         // Normal write
         if (result < partial_overwrite_point) {
-            write_blocks(DATA_BLOCKS_OFFSET + inode.data_ptrs[i], 1,
+            write_blocks(DATA_BLOCKS_OFFSET + inode_table[fde.inode_num].data_ptrs[i], 1,
                          buf + (i * BLOCK_SIZE));
         } else {
             // It's the piece of data where some needs to be overwritten
             char temp_buf[BLOCK_SIZE];
-            read_blocks(DATA_BLOCKS_OFFSET + inode.data_ptrs[i], 1, temp_buf);
+            read_blocks(DATA_BLOCKS_OFFSET + inode_table[fde.inode_num].data_ptrs[i], 1, temp_buf);
             strncpy(buf + ((i + NUM_OF_DATA_PTRS) * BLOCK_SIZE), temp_buf, (fde.read_write_ptr + result) % BLOCK_SIZE);
-            write_blocks(DATA_BLOCKS_OFFSET + inode.data_ptrs[i], 1,
+            write_blocks(DATA_BLOCKS_OFFSET + inode_table[fde.inode_num].data_ptrs[i], 1,
                          buf + ((i + NUM_OF_DATA_PTRS) * BLOCK_SIZE));
         }
     }
@@ -469,7 +458,7 @@ int sfs_fwrite(int fileID, char *buf, int length) {
         const uint32_t num_of_ptrs = blocks_used - NUM_OF_DATA_PTRS;
         uint32_t ptrs[INDIRECT_LIST_SIZE];
         // Getting the indirect pointers
-        read_blocks(DATA_BLOCKS_OFFSET + inode.indirect, 1, ptrs);
+        read_blocks(DATA_BLOCKS_OFFSET + inode_table[fde.inode_num].indirect, 1, ptrs);
         for (uint32_t i = start_block >= NUM_OF_DATA_PTRS ? start_block : 0;
              i < num_of_ptrs && result < length;
              ++i, result += BLOCK_SIZE) {
@@ -489,7 +478,7 @@ int sfs_fwrite(int fileID, char *buf, int length) {
         }
     }
 
-    fde.read_write_ptr += result;
+    file_desc_table[fileID].read_write_ptr += result;
     return result;
 }
 
@@ -498,7 +487,7 @@ int sfs_fread(int fileID, char *buf, int length) {
         return 0;
     }
 
-    file_descriptor_entry_t fde = file_desc_table[fileID];
+    const file_descriptor_entry_t fde = file_desc_table[fileID];
     if (fde.inode_num >= NUM_OF_INODES) {
         return 0;
     }
@@ -527,22 +516,17 @@ int sfs_fread(int fileID, char *buf, int length) {
         }
     }
 
-    fde.read_write_ptr += result;
+    file_desc_table[fileID].read_write_ptr += result;
     return result;
 }
 
 int sfs_fseek(int fileID, int location) {
-    if (0 > fileID || fileID >= NUM_OF_INODES) {
+    if (0 > fileID || fileID >= NUM_OF_INODES || file_desc_table[fileID].inode_num >= NUM_OF_INODES) {
         return -1;
     }
 
-    file_descriptor_entry_t fde = file_desc_table[fileID];
-    if (fde.inode_num >= NUM_OF_INODES) {
-        return -1;
-    } else {
-        fde.read_write_ptr = location;
-        return 0;
-    }
+    file_desc_table[fileID].read_write_ptr = location;
+    return 0;
 }
 
 /**
@@ -579,12 +563,11 @@ int sfs_remove(char *file_name) {
     write_from_ptr(root, root_dir);
 
     // Release the data blocks
-    inode_t inode = inode_table[inode_num];
-    release_data_blocks(inode);
+    release_data_blocks(inode_table[inode_num]);
     write_blocks(FREE_BITMAP_OFFSET, NUM_OF_FREE_BITMAP_BLOCKS, free_block_map);
 
     // Release the inode
-    inode.size = 0;
+    inode_table[inode_num].size = 0;
     write_blocks(INODE_BLOCKS_OFFSET, NUM_OF_INODE_BLOCKS, inode_table);
 
     return 0;
