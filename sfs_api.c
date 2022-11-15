@@ -271,15 +271,24 @@ int sfs_fopen(char *file_name) {
     uint32_t next_free_idx;
     uint32_t inode_num = find_inode_num(file_name, &next_free_idx);
 
-    if (inode_num >= MAX_NUM_OF_DIR_ENTRIES && next_free_idx < MAX_NUM_OF_DIR_ENTRIES) {
-        inode_num = get_lowest_inode_num();
-        directory_entry_t dir_entry = root_dir[next_free_idx];
-        dir_entry.inode_num = inode_num;
-        strcpy(dir_entry.file_name, file_name);
-        // TODO copy into hard disk
-    } else {
-        return -1;
+    if (inode_num >= MAX_NUM_OF_DIR_ENTRIES) {
+        if (next_free_idx < MAX_NUM_OF_DIR_ENTRIES) {
+            inode_num = get_lowest_inode_num();
+            if (inode_num >= MAX_NUM_OF_DIR_ENTRIES) {
+                return -1;
+            }
+
+            directory_entry_t dir_entry = root_dir[next_free_idx];
+            dir_entry.inode_num = inode_num;
+            strcpy(dir_entry.file_name, file_name);
+            // Set inode size to 0
+            inode_table[inode_num].size = 0;
+            // TODO copy into hard disk
+        } else {
+            return -1;
+        }
     }
+
     const inode_t inode = inode_table[inode_num];
     const int result = get_next_file_desc_idx(inode_num, inode.size);
     return result;
