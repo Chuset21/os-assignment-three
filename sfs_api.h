@@ -48,7 +48,7 @@ int sfs_fopen(char *);
 
 int sfs_fclose(int);
 
-int sfs_fwrite(int, const char *, int);
+int sfs_fwrite(int, char *, int);
 
 int sfs_fread(int, char *, int);
 

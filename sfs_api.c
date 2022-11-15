@@ -431,7 +431,7 @@ bool allocate_data_blocks_for_inode(uint32_t final_size, inode_t inode) {
     return true;
 }
 
-int sfs_fwrite(int fileID, const char *buf, int length) {
+int sfs_fwrite(int fileID, char *buf, int length) {
     if (0 > fileID || fileID >= NUM_OF_INODES) {
         return 0;
     }
@@ -442,24 +442,27 @@ int sfs_fwrite(int fileID, const char *buf, int length) {
     }
     inode_t inode = inode_table[fde.inode_num];
 
-    const uint32_t final_rw_ptr = fde.read_write_ptr + length;
-    if (!allocate_data_blocks_for_inode(final_rw_ptr, inode)) {
+    if (!allocate_data_blocks_for_inode(fde.read_write_ptr + length, inode)) {
         return 0;
     }
 
-    // TODO implement
     const int blocks_used = CEIL(inode.size, BLOCK_SIZE);
     const uint32_t start_block = fde.read_write_ptr / BLOCK_SIZE;
-    const uint32_t last_block_point = length - BLOCK_SIZE;
+    const uint32_t partial_overwrite_point = length - BLOCK_SIZE;
     int result = 0;
     for (uint32_t i = start_block;
          i < NUM_OF_DATA_PTRS && i < blocks_used && result < length; ++i, result += BLOCK_SIZE) {
-        // If it's not the final data
-        if (result < last_block_point) {
+        // Normal write
+        if (result < partial_overwrite_point) {
             write_blocks(DATA_BLOCKS_OFFSET + inode.data_ptrs[i], 1,
-                         ((uint8_t *) buf) + (i * BLOCK_SIZE)); // Use uint8_t instead of void for pointer arithmetic
+                         buf + (i * BLOCK_SIZE));
         } else {
-            // TODO It's the final piece of data
+            // It's the piece of data where some needs to be overwritten
+            char temp_buf[BLOCK_SIZE];
+            read_blocks(DATA_BLOCKS_OFFSET + inode.data_ptrs[i], 1, temp_buf);
+            strncpy(buf + ((i + NUM_OF_DATA_PTRS) * BLOCK_SIZE), temp_buf, (fde.read_write_ptr + result) % BLOCK_SIZE);
+            write_blocks(DATA_BLOCKS_OFFSET + inode.data_ptrs[i], 1,
+                         buf + ((i + NUM_OF_DATA_PTRS) * BLOCK_SIZE));
         }
     }
     if (blocks_used > NUM_OF_DATA_PTRS && result < length) {
@@ -467,21 +470,27 @@ int sfs_fwrite(int fileID, const char *buf, int length) {
         uint32_t ptrs[INDIRECT_LIST_SIZE];
         // Getting the indirect pointers
         read_blocks(DATA_BLOCKS_OFFSET + inode.indirect, 1, ptrs);
-        // Read each data block one by one into the pointer
         for (uint32_t i = start_block >= NUM_OF_DATA_PTRS ? start_block : 0;
              i < num_of_ptrs && result < length;
              ++i, result += BLOCK_SIZE) {
-            if (result < last_block_point) {
-                read_blocks(DATA_BLOCKS_OFFSET + ptrs[i], 1,
-                            ((uint8_t *) buf) + ((i + NUM_OF_DATA_PTRS) * BLOCK_SIZE));
+            // Normal write
+            if (result < partial_overwrite_point) {
+                write_blocks(DATA_BLOCKS_OFFSET + ptrs[i], 1,
+                             buf + ((i + NUM_OF_DATA_PTRS) * BLOCK_SIZE));
             } else {
-                // TODO It's the final piece of data
+                // It's the piece of data where some needs to be overwritten
+                char temp_buf[BLOCK_SIZE];
+                read_blocks(DATA_BLOCKS_OFFSET + ptrs[i], 1, temp_buf);
+                strncpy(buf + ((i + NUM_OF_DATA_PTRS) * BLOCK_SIZE), temp_buf,
+                        (fde.read_write_ptr + result) % BLOCK_SIZE);
+                write_blocks(DATA_BLOCKS_OFFSET + ptrs[i], 1,
+                             buf + ((i + NUM_OF_DATA_PTRS) * BLOCK_SIZE));
             }
         }
     }
 
-    fde.read_write_ptr = final_rw_ptr;
-    return length;
+    fde.read_write_ptr += result;
+    return result;
 }
 
 int sfs_fread(int fileID, char *buf, int length) {
@@ -502,7 +511,7 @@ int sfs_fread(int fileID, char *buf, int length) {
          i < NUM_OF_DATA_PTRS && i < blocks_used && result < length; ++i, result += BLOCK_SIZE) {
         // Read each data block one by one into the pointer
         read_blocks(DATA_BLOCKS_OFFSET + inode.data_ptrs[i], 1,
-                    ((uint8_t *) buf) + (i * BLOCK_SIZE)); // Use uint8_t instead of void for pointer arithmetic
+                    buf + (i * BLOCK_SIZE));
     }
     if (blocks_used > NUM_OF_DATA_PTRS && result < length) {
         const uint32_t num_of_ptrs = blocks_used - NUM_OF_DATA_PTRS;
@@ -514,7 +523,7 @@ int sfs_fread(int fileID, char *buf, int length) {
              i < num_of_ptrs && result < length;
              ++i, result += BLOCK_SIZE) {
             read_blocks(DATA_BLOCKS_OFFSET + ptrs[i], 1,
-                        ((uint8_t *) buf) + ((i + NUM_OF_DATA_PTRS) * BLOCK_SIZE));
+                        buf + ((i + NUM_OF_DATA_PTRS) * BLOCK_SIZE));
         }
     }
 
