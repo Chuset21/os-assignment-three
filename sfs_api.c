@@ -241,17 +241,48 @@ int get_next_file_desc_idx(uint32_t inode_num, uint32_t read_write_ptr) {
     return -1;
 }
 
+/**
+ * Get the lowest inode number that isn't being used.
+ * This function uses quite a lot of memory, since I did not feel like implementing a hashset.
+ * @return The lowest inode number that isn't being used if successful.
+ * Returns MAX_NUM_OF_DIR_ENTRIES if unsuccessful.
+ */
+uint32_t get_lowest_inode_num() {
+    bool is_taken[MAX_NUM_OF_DIR_ENTRIES + 1];
+    uint32_t i;
+    for (i = 0; i < MAX_NUM_OF_DIR_ENTRIES; ++i) {
+        is_taken[i] = false;
+    }
+
+    for (i = 0; i < MAX_NUM_OF_DIR_ENTRIES && root_dir[i].inode_num != 0; ++i) {
+        is_taken[root_dir[i].inode_num] = true;
+    }
+
+    for (i = 1; i < MAX_NUM_OF_DIR_ENTRIES; ++i) {
+        if (!is_taken[i]) {
+            return i;
+        }
+    }
+
+    return MAX_NUM_OF_DIR_ENTRIES;
+}
+
 int sfs_fopen(char *file_name) {
     uint32_t next_free_idx;
-    const uint32_t inode_num = find_inode_num(file_name, &next_free_idx);
-    // TODO implement
-    // If it exists
-    if (inode_num < MAX_NUM_OF_DIR_ENTRIES) {
-        // Need to get the actual i_node
+    uint32_t inode_num = find_inode_num(file_name, &next_free_idx);
+
+    if (inode_num >= MAX_NUM_OF_DIR_ENTRIES && next_free_idx < MAX_NUM_OF_DIR_ENTRIES) {
+        inode_num = get_lowest_inode_num();
+        directory_entry_t dir_entry = root_dir[next_free_idx];
+        dir_entry.inode_num = inode_num;
+        strcpy(dir_entry.file_name, file_name);
+        // TODO copy into hard disk
     } else {
-        // It doesn't exist, it needs to be created
+        return -1;
     }
-    return -1;
+    const inode_t inode = inode_table[inode_num];
+    const int result = get_next_file_desc_idx(inode_num, inode.size);
+    return result;
 }
 
 int sfs_fclose(int fileID) {
