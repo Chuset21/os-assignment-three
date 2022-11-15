@@ -92,13 +92,14 @@ void file_desc_table_init() {
  * @param ptr The pointer to read into.
  */
 void read_into_ptr(const inode_t inode, const void *ptr) {
-    for (int i = 0; i < NUM_OF_DATA_PTRS && i < inode.size; ++i) {
+    const int blocks_used = CEIL(inode.size, BLOCK_SIZE);
+    for (int i = 0; i < NUM_OF_DATA_PTRS && i < blocks_used; ++i) {
         // Read each data block one by one into the pointer
         read_blocks(DATA_BLOCKS_OFFSET + inode.data_ptrs[i], 1,
                     ((uint8_t *) ptr) + (i * BLOCK_SIZE)); // Use uint8_t instead of void for pointer arithmetic
     }
-    if (inode.size > NUM_OF_DATA_PTRS) {
-        const uint32_t num_of_ptrs = inode.size - NUM_OF_DATA_PTRS;
+    if (blocks_used > NUM_OF_DATA_PTRS) {
+        const uint32_t num_of_ptrs = blocks_used - NUM_OF_DATA_PTRS;
         uint32_t ptrs[INDIRECT_LIST_SIZE];
         // Getting the indirect pointers
         read_blocks(DATA_BLOCKS_OFFSET + inode.indirect, 1, ptrs);
@@ -283,7 +284,7 @@ int sfs_fopen(char *file_name) {
             strcpy(dir_entry.file_name, file_name);
             // Set inode size to 0
             inode_table[inode_num].size = 0;
-            // TODO copy into hard disk
+            // TODO copy directory into hard disk
         } else {
             return -1;
         }
