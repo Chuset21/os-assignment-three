@@ -448,6 +448,37 @@ int sfs_fwrite(int fileID, const char *buf, int length) {
     }
 
     // TODO implement
+    const int blocks_used = CEIL(inode.size, BLOCK_SIZE);
+    const uint32_t start_block = fde.read_write_ptr / BLOCK_SIZE;
+    const uint32_t last_block_point = length - BLOCK_SIZE;
+    int result = 0;
+    for (uint32_t i = start_block;
+         i < NUM_OF_DATA_PTRS && i < blocks_used && result < length; ++i, result += BLOCK_SIZE) {
+        // If it's not the final data
+        if (result < last_block_point) {
+            write_blocks(DATA_BLOCKS_OFFSET + inode.data_ptrs[i], 1,
+                         ((uint8_t *) buf) + (i * BLOCK_SIZE)); // Use uint8_t instead of void for pointer arithmetic
+        } else {
+            // TODO It's the final piece of data
+        }
+    }
+    if (blocks_used > NUM_OF_DATA_PTRS && result < length) {
+        const uint32_t num_of_ptrs = blocks_used - NUM_OF_DATA_PTRS;
+        uint32_t ptrs[INDIRECT_LIST_SIZE];
+        // Getting the indirect pointers
+        read_blocks(DATA_BLOCKS_OFFSET + inode.indirect, 1, ptrs);
+        // Read each data block one by one into the pointer
+        for (uint32_t i = start_block >= NUM_OF_DATA_PTRS ? start_block : 0;
+             i < num_of_ptrs && result < length;
+             ++i, result += BLOCK_SIZE) {
+            if (result < last_block_point) {
+                read_blocks(DATA_BLOCKS_OFFSET + ptrs[i], 1,
+                            ((uint8_t *) buf) + ((i + NUM_OF_DATA_PTRS) * BLOCK_SIZE));
+            } else {
+                // TODO It's the final piece of data
+            }
+        }
+    }
 
     fde.read_write_ptr = final_rw_ptr;
     return length;
