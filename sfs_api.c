@@ -341,25 +341,94 @@ int sfs_fclose(int fileID) {
 }
 
 /**
- * Clear a given bit from the free bitmap.
- * @param bit bit to clear.
- */
-void clear_bit(uint32_t bit) {
-    const uint32_t arr_idx = bit / sizeof(uint64_t);
-    const uint32_t bit_idx = bit % sizeof(uint64_t);
-    // Clear the bit
-    free_block_map[arr_idx] &= ~(((uint64_t) 1) << bit_idx);
-}
-
-/**
  * Set a given bit from the free bitmap.
  * @param bit bit to set.
  */
 void set_bit(uint32_t bit) {
-    const uint32_t arr_idx = bit / sizeof(uint64_t);
-    const uint32_t bit_idx = bit % sizeof(uint64_t);
+    const uint32_t size_in_bits = sizeof(uint64_t) * 4;
+    const uint32_t arr_idx = bit / size_in_bits;
+    const uint32_t bit_idx = bit % size_in_bits;
     // Set the bit
     free_block_map[arr_idx] |= (((uint64_t) 1) << bit_idx);
+}
+
+/**
+ * Allocate a data block. Returns the data block number allocated if successful.
+ * Returns NUM_OF_DATA_BLOCKS if unsuccessful, when the disk is fully allocated.
+ */
+uint32_t allocate_data_block() {
+    const int limit = sizeof(uint64_t) * 4;
+    for (int i = 0; i < FREE_BLOCK_MAP_ARR_SIZE; ++i) {
+        for (int j = 0; j < limit; ++j) {
+            // Check the bit
+            if ((free_block_map[i] >> j) & ((uint64_t) 1)) {
+                // Clear the bit
+                free_block_map[i] &= ~(((uint64_t) 1) << j);
+                return limit * i + j;
+            }
+        }
+    }
+    return NUM_OF_DATA_BLOCKS;
+}
+
+/**
+ * Allocate data blocks for an inode as needed.
+ * @param final_size The desired size of the file after allocating the data blocks.
+ * @param inode The inode to allocate data blocks for.
+ * @return True if successful, false if unsuccessful.
+ */
+bool allocate_data_blocks_for_inode(uint32_t final_size, inode_t inode) {
+    if (final_size > inode.size) {
+        // Number of blocks to allocate
+        const uint32_t blocks_used = CEIL(inode.size, BLOCK_SIZE);
+        const uint32_t final_blocks_used = CEIL(final_size, BLOCK_SIZE);
+        // If that many blocks cannot be allocated return false
+        if (final_blocks_used > MAX_DATA_BLOCKS_FOR_FILE) {
+            return false;
+        }
+        uint32_t i;
+        // Allocate disk blocks
+        for (i = blocks_used; i < final_blocks_used && i < NUM_OF_DATA_PTRS; ++i) {
+            const uint32_t data_block_num = allocate_data_block();
+            if (data_block_num >= NUM_OF_DATA_BLOCKS) {
+                return false;
+            }
+            inode.data_ptrs[i] = data_block_num;
+        }
+        if (final_blocks_used > NUM_OF_DATA_PTRS) {
+            const uint32_t start = blocks_used > NUM_OF_DATA_PTRS ? blocks_used - NUM_OF_DATA_PTRS - 1 : 0;
+            const uint32_t limit = final_blocks_used - NUM_OF_DATA_PTRS;
+            uint32_t ptrs[INDIRECT_LIST_SIZE];
+            if (start > 0) {
+                // Getting the indirect pointers
+                read_blocks(DATA_BLOCKS_OFFSET + inode.indirect, 1, ptrs);
+            } else {
+                // Allocate a data block for the indirect pointers
+                const uint32_t data_block_num = allocate_data_block();
+                if (data_block_num >= NUM_OF_DATA_BLOCKS) {
+                    return false;
+                }
+                inode.indirect = data_block_num;
+            }
+            // Update the indirect pointer list
+            for (i = start; i < limit && i < INDIRECT_LIST_SIZE; ++i) {
+                const uint32_t data_block_num = allocate_data_block();
+                if (data_block_num >= NUM_OF_DATA_BLOCKS) {
+                    return false;
+                }
+                ptrs[i] = data_block_num;
+            }
+            // Write the new indirect pinter list to the disk
+            write_blocks(DATA_BLOCKS_OFFSET + inode.indirect, 1, ptrs);
+        }
+        // Update the size of the inode
+        inode.size = final_size;
+        // Write inode to disk
+        write_blocks(INODE_BLOCKS_OFFSET, NUM_OF_INODE_BLOCKS, inode_table);
+        // Write free bitmap to disk
+        write_blocks(FREE_BITMAP_OFFSET, NUM_OF_FREE_BITMAP_BLOCKS, free_block_map);
+    }
+    return true;
 }
 
 int sfs_fwrite(int fileID, const char *buf, int length) {
@@ -367,13 +436,21 @@ int sfs_fwrite(int fileID, const char *buf, int length) {
         return -1;
     }
 
-    const file_descriptor_entry_t fde = file_desc_table[fileID];
+    file_descriptor_entry_t fde = file_desc_table[fileID];
     if (fde.inode_num >= NUM_OF_INODES) {
         return -1;
     }
-    const inode_t inode = inode_table[fde.inode_num];
+    inode_t inode = inode_table[fde.inode_num];
+
+    const uint32_t final_rw_ptr = fde.read_write_ptr + length;
+    if (!allocate_data_blocks_for_inode(final_rw_ptr, inode)) {
+        return -1;
+    }
+
     // TODO implement
-    return -1;
+
+    fde.read_write_ptr = final_rw_ptr;
+    return length;
 }
 
 int sfs_fread(int fileID, char *buf, int length) {
