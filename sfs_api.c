@@ -406,7 +406,7 @@ bool allocate_data_blocks_for_inode(uint32_t final_size, inode_t *const inode) {
             inode->data_ptrs[i] = data_block_num;
         }
         if (final_blocks_used > NUM_OF_DATA_PTRS) {
-            const uint32_t start = blocks_used > NUM_OF_DATA_PTRS ? blocks_used - NUM_OF_DATA_PTRS - 1 : 0;
+            const uint32_t start = blocks_used > NUM_OF_DATA_PTRS ? blocks_used - NUM_OF_DATA_PTRS : 0;
             const uint32_t limit = final_blocks_used - NUM_OF_DATA_PTRS;
             uint32_t ptrs[INDIRECT_LIST_SIZE];
             if (start > 0) {
@@ -473,8 +473,7 @@ int sfs_fwrite(int fileID, char *buf, int length) {
         const uint32_t bytes_written = diff + offset >= BLOCK_SIZE ? BLOCK_SIZE - offset : diff;
 
         memcpy(temp_buf + offset, buf + result, bytes_written);
-        write_blocks(DATA_BLOCKS_OFFSET + inode_table[fde.inode_num].data_ptrs[i], 1,
-                     temp_buf);
+        write_blocks(DATA_BLOCKS_OFFSET + inode_table[fde.inode_num].data_ptrs[i], 1,temp_buf);
 
         result += bytes_written;
         offset = 0;
