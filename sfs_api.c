@@ -1,4 +1,5 @@
 #include <string.h>
+#include <stdlib.h>
 #include "sfs_api.h"
 #include "disk_emu.h"
 
@@ -454,22 +455,29 @@ int sfs_fwrite(int fileID, char *buf, int length) {
         return 0;
     }
 
+    // Need to have an offset
     const int blocks_used = CEIL(inode_table[fde.inode_num].size, BLOCK_SIZE);
     const uint32_t start_block = fde.read_write_ptr / BLOCK_SIZE;
+    uint32_t offset = fde.read_write_ptr % BLOCK_SIZE;
     uint32_t result = 0;
+    char *const temp_buf = malloc(sizeof(char) * BLOCK_SIZE);
     for (uint32_t i = start_block;
          i < NUM_OF_DATA_PTRS && i < blocks_used && result < length; ++i) {
 
-        char temp_buf[BLOCK_SIZE];
         read_blocks(DATA_BLOCKS_OFFSET + inode_table[fde.inode_num].data_ptrs[i], 1, temp_buf);
         const uint32_t diff = length - result;
-        const uint32_t bytes_written = diff > BLOCK_SIZE ? BLOCK_SIZE : diff;
+        // Example: offset is 900, but want to write 800 bytes
+        // diff = 800
+        // bytes_written = (should equal 1024 - 900) 124
+        // next time the offset will be 0 and the diff will be (900 - 124)
+        const uint32_t bytes_written = diff + offset >= BLOCK_SIZE ? BLOCK_SIZE - offset : diff;
 
-        memcpy(temp_buf, buf + result, bytes_written);
+        memcpy(temp_buf + offset, buf + result, bytes_written);
         write_blocks(DATA_BLOCKS_OFFSET + inode_table[fde.inode_num].data_ptrs[i], 1,
                      temp_buf);
 
         result += bytes_written;
+        offset = 0;
     }
     if (blocks_used > NUM_OF_DATA_PTRS && result < length) {
         const uint32_t num_of_ptrs = blocks_used - NUM_OF_DATA_PTRS;
@@ -479,15 +487,15 @@ int sfs_fwrite(int fileID, char *buf, int length) {
         for (uint32_t i = start_block > NUM_OF_DATA_PTRS ? start_block - NUM_OF_DATA_PTRS : 0;
              i < num_of_ptrs && result < length; ++i) {
 
-            char temp_buf[BLOCK_SIZE];
             read_blocks(DATA_BLOCKS_OFFSET + ptrs[i], 1, temp_buf);
             const uint32_t diff = length - result;
-            const uint32_t bytes_written = diff > BLOCK_SIZE ? BLOCK_SIZE : diff;
+            const uint32_t bytes_written = diff + offset >= BLOCK_SIZE ? BLOCK_SIZE - offset : diff;
 
-            memcpy(temp_buf, buf + result, bytes_written);
+            memcpy(temp_buf + offset, buf + result, bytes_written);
             write_blocks(DATA_BLOCKS_OFFSET + ptrs[i], 1, temp_buf);
 
             result += bytes_written;
+            offset = 0;
         }
     }
 
@@ -508,17 +516,22 @@ int sfs_fread(int fileID, char *buf, int length) {
 
     const int blocks_used = CEIL(inode.size, BLOCK_SIZE);
     const uint32_t start_block = fde.read_write_ptr / BLOCK_SIZE;
+    // This will be set to 0 once it's not the first read
+    // The idea is that if the pointer is in the middle of a block,
+    // we should offset the first read, and only read into the buffer bytes after the pointer
+    uint32_t offset = fde.read_write_ptr % BLOCK_SIZE;
     uint32_t result = 0;
+    char *const temp_buf = malloc(sizeof(char) * BLOCK_SIZE);
     for (uint32_t i = start_block;
          i < NUM_OF_DATA_PTRS && i < blocks_used && result < length; ++i) {
         // Read each data block one by one
-        char temp_buf[BLOCK_SIZE];
         read_blocks(DATA_BLOCKS_OFFSET + inode.data_ptrs[i], 1, temp_buf);
 
         const uint32_t diff = length - result;
-        const uint32_t bytes_read = diff > BLOCK_SIZE ? BLOCK_SIZE : diff;
-        memcpy(buf + result, temp_buf, bytes_read);
+        const uint32_t bytes_read = diff + offset >= BLOCK_SIZE ? BLOCK_SIZE - offset : diff;
+        memcpy(buf + result, temp_buf + offset, bytes_read);
         result += bytes_read;
+        offset = 0;
     }
     if (blocks_used > NUM_OF_DATA_PTRS && result < length) {
         const uint32_t num_of_ptrs = blocks_used - NUM_OF_DATA_PTRS;
@@ -528,13 +541,13 @@ int sfs_fread(int fileID, char *buf, int length) {
         // Read each data block one by one
         for (uint32_t i = start_block > NUM_OF_DATA_PTRS ? start_block - NUM_OF_DATA_PTRS : 0;
              i < num_of_ptrs && result < length; ++i) {
-            char temp_buf[BLOCK_SIZE];
             read_blocks(DATA_BLOCKS_OFFSET + ptrs[i], 1, temp_buf);
 
             const uint32_t diff = length - result;
-            const uint32_t bytes_read = diff > BLOCK_SIZE ? BLOCK_SIZE : diff;
-            memcpy(buf + result, temp_buf, bytes_read);
+            const uint32_t bytes_read = diff + offset >= BLOCK_SIZE ? BLOCK_SIZE - offset : diff;
+            memcpy(buf + result, temp_buf + offset, bytes_read);
             result += bytes_read;
+            offset = 0;
         }
     }
 
