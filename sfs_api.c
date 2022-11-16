@@ -526,7 +526,8 @@ int sfs_fread(int fileID, char *buf, int length) {
         // Getting the indirect pointers
         read_blocks(DATA_BLOCKS_OFFSET + inode.indirect, 1, ptrs);
         // Read each data block one by one
-        for (uint32_t i = start_block >= NUM_OF_DATA_PTRS ? start_block : 0; i < num_of_ptrs && result < length; ++i) {
+        for (uint32_t i = start_block >= NUM_OF_DATA_PTRS ? start_block - NUM_OF_DATA_PTRS : 0;
+             i < num_of_ptrs && result < length; ++i) {
             char temp_buf[BLOCK_SIZE];
             read_blocks(DATA_BLOCKS_OFFSET + ptrs[i], 1, temp_buf);
 
