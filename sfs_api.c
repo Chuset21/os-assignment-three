@@ -465,7 +465,7 @@ int sfs_fwrite(int fileID, char *buf, int length) {
         const uint32_t diff = length - result;
         const uint32_t bytes_written = diff > BLOCK_SIZE ? BLOCK_SIZE : diff;
 
-        strncpy(temp_buf, buf + result, bytes_written);
+        memcpy(temp_buf, buf + result, bytes_written);
         write_blocks(DATA_BLOCKS_OFFSET + inode_table[fde.inode_num].data_ptrs[i], 1,
                      temp_buf);
 
@@ -484,7 +484,7 @@ int sfs_fwrite(int fileID, char *buf, int length) {
             const uint32_t diff = length - result;
             const uint32_t bytes_written = diff > BLOCK_SIZE ? BLOCK_SIZE : diff;
 
-            strncpy(temp_buf, buf + result, bytes_written);
+            memcpy(temp_buf, buf + result, bytes_written);
             write_blocks(DATA_BLOCKS_OFFSET + ptrs[i], 1, temp_buf);
 
             result += bytes_written;
@@ -517,7 +517,7 @@ int sfs_fread(int fileID, char *buf, int length) {
 
         const uint32_t diff = length - result;
         const uint32_t bytes_read = diff > BLOCK_SIZE ? BLOCK_SIZE : diff;
-        strncpy(buf + result, temp_buf, bytes_read);
+        memcpy(buf + result, temp_buf, bytes_read);
         result += bytes_read;
     }
     if (blocks_used > NUM_OF_DATA_PTRS && result < length) {
@@ -526,14 +526,14 @@ int sfs_fread(int fileID, char *buf, int length) {
         // Getting the indirect pointers
         read_blocks(DATA_BLOCKS_OFFSET + inode.indirect, 1, ptrs);
         // Read each data block one by one
-        for (uint32_t i = start_block >= NUM_OF_DATA_PTRS ? start_block - NUM_OF_DATA_PTRS : 0;
+        for (uint32_t i = start_block > NUM_OF_DATA_PTRS ? start_block - NUM_OF_DATA_PTRS : 0;
              i < num_of_ptrs && result < length; ++i) {
             char temp_buf[BLOCK_SIZE];
             read_blocks(DATA_BLOCKS_OFFSET + ptrs[i], 1, temp_buf);
 
             const uint32_t diff = length - result;
             const uint32_t bytes_read = diff > BLOCK_SIZE ? BLOCK_SIZE : diff;
-            strncpy(buf + result, temp_buf, bytes_read);
+            memcpy(buf + result, temp_buf, bytes_read);
             result += bytes_read;
         }
     }
