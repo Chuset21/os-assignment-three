@@ -476,7 +476,7 @@ int sfs_fwrite(int fileID, char *buf, int length) {
         uint32_t ptrs[INDIRECT_LIST_SIZE];
         // Getting the indirect pointers
         read_blocks(DATA_BLOCKS_OFFSET + inode_table[fde.inode_num].indirect, 1, ptrs);
-        for (uint32_t i = start_block >= NUM_OF_DATA_PTRS ? start_block : 0;
+        for (uint32_t i = start_block > NUM_OF_DATA_PTRS ? start_block - NUM_OF_DATA_PTRS : 0;
              i < num_of_ptrs && result < length; ++i) {
 
             char temp_buf[BLOCK_SIZE];
