@@ -29,7 +29,7 @@ file_descriptor_entry_t file_desc_table[NUM_OF_INODES];
 
 uint32_t current_file_index;
 
-bool allocate_data_blocks_for_inode(uint32_t final_size, inode_t *const inode);
+bool allocate_data_blocks_for_inode(uint32_t final_size, inode_t *inode);
 
 /**
  * Initialise the super block.
