@@ -291,7 +291,26 @@ uint32_t get_lowest_inode_num() {
     return MAX_NUM_OF_DIR_ENTRIES;
 }
 
+bool is_open(const char *const name) {
+    for (int i = 0; i < NUM_OF_INODES; ++i) {
+        if (file_desc_table[i].inode_num < NUM_OF_INODES) {
+            for (int j = 0; j < MAX_NUM_OF_DIR_ENTRIES && root_dir[j].inode_num != 0; ++j) {
+                if (file_desc_table[i].inode_num == root_dir[j].inode_num
+                    && strcmp(root_dir[j].file_name, name) == 0) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
 int sfs_fopen(char *file_name) {
+    if (is_open(file_name)) {
+        return -1;
+    }
+
     uint32_t next_free_idx;
     uint32_t inode_num = find_inode_num(file_name, &next_free_idx);
 
@@ -431,8 +450,6 @@ int sfs_fwrite(int fileID, char *buf, int length) {
         return 0;
     }
 
-    const uint32_t prev_last_block = inode_table[fde.inode_num].size / BLOCK_SIZE;
-    const uint32_t prev_num_blocks = CEIL(inode_table[fde.inode_num].size, BLOCK_SIZE);
     if (!allocate_data_blocks_for_inode(fde.read_write_ptr + length, &inode_table[fde.inode_num])) {
         return 0;
     }
@@ -443,20 +460,16 @@ int sfs_fwrite(int fileID, char *buf, int length) {
     for (uint32_t i = start_block;
          i < NUM_OF_DATA_PTRS && i < blocks_used && result < length; ++i) {
 
-        if (i == prev_last_block && prev_num_blocks == blocks_used) {
-            // It's the piece of data where some needs to be overwritten
-            char temp_buf[BLOCK_SIZE];
-            read_blocks(DATA_BLOCKS_OFFSET + inode_table[fde.inode_num].data_ptrs[i], 1, temp_buf);
-            strncpy(temp_buf, buf + result, (fde.read_write_ptr + result) % BLOCK_SIZE);
-            write_blocks(DATA_BLOCKS_OFFSET + inode_table[fde.inode_num].data_ptrs[i], 1,
-                         temp_buf);
-        } else {
-            // Normal write
-            write_blocks(DATA_BLOCKS_OFFSET + inode_table[fde.inode_num].data_ptrs[i], 1,
-                         buf + result);
-        }
-        const uint32_t len = strnlen(buf + result, BLOCK_SIZE);
-        result += len;
+        char temp_buf[BLOCK_SIZE];
+        read_blocks(DATA_BLOCKS_OFFSET + inode_table[fde.inode_num].data_ptrs[i], 1, temp_buf);
+        const uint32_t diff = length - result;
+        const uint32_t bytes_written = diff > BLOCK_SIZE ? BLOCK_SIZE : diff;
+
+        strncpy(temp_buf, buf + result, bytes_written);
+        write_blocks(DATA_BLOCKS_OFFSET + inode_table[fde.inode_num].data_ptrs[i], 1,
+                     temp_buf);
+
+        result += bytes_written;
     }
     if (blocks_used > NUM_OF_DATA_PTRS && result < length) {
         const uint32_t num_of_ptrs = blocks_used - NUM_OF_DATA_PTRS;
@@ -466,18 +479,15 @@ int sfs_fwrite(int fileID, char *buf, int length) {
         for (uint32_t i = start_block >= NUM_OF_DATA_PTRS ? start_block : 0;
              i < num_of_ptrs && result < length; ++i) {
 
-            if (i + NUM_OF_DATA_PTRS == prev_last_block && prev_num_blocks == blocks_used) {
-                // It's the piece of data where some needs to be overwritten
-                char temp_buf[BLOCK_SIZE];
-                read_blocks(DATA_BLOCKS_OFFSET + ptrs[i], 1, temp_buf);
-                strncpy(temp_buf, buf + result, (fde.read_write_ptr + result) % BLOCK_SIZE);
-                write_blocks(DATA_BLOCKS_OFFSET + ptrs[i], 1, temp_buf);
-            } else {
-                // Normal write
-                write_blocks(DATA_BLOCKS_OFFSET + ptrs[i], 1, buf + result);
-            }
-            const uint32_t len = strnlen(buf + result, BLOCK_SIZE);
-            result += len;
+            char temp_buf[BLOCK_SIZE];
+            read_blocks(DATA_BLOCKS_OFFSET + ptrs[i], 1, temp_buf);
+            const uint32_t diff = length - result;
+            const uint32_t bytes_written = diff > BLOCK_SIZE ? BLOCK_SIZE : diff;
+
+            strncpy(temp_buf, buf + result, bytes_written);
+            write_blocks(DATA_BLOCKS_OFFSET + ptrs[i], 1, temp_buf);
+
+            result += bytes_written;
         }
     }
 
