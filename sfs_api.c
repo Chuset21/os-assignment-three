@@ -29,6 +29,8 @@ file_descriptor_entry_t file_desc_table[NUM_OF_INODES];
 
 uint32_t current_file_index;
 
+bool allocate_data_blocks_for_inode(uint32_t final_size, inode_t *const inode);
+
 /**
  * Initialise the super block.
  */
@@ -327,7 +329,8 @@ int sfs_fopen(char *file_name) {
             // Set inode size to 0
             inode_table[inode_num].size = 0;
 
-            inode_table[super_block.root_dir].size += sizeof(directory_entry_t);
+            allocate_data_blocks_for_inode(inode_table[super_block.root_dir].size + sizeof(directory_entry_t),
+                                           &inode_table[super_block.root_dir]);
             write_from_ptr(inode_table[super_block.root_dir], root_dir);
             // This could be changed to be more efficient, instead of writing all the inodes
             write_blocks(INODE_BLOCKS_OFFSET, NUM_OF_INODE_BLOCKS, inode_table);
@@ -473,7 +476,7 @@ int sfs_fwrite(int fileID, char *buf, int length) {
         const uint32_t bytes_written = diff + offset >= BLOCK_SIZE ? BLOCK_SIZE - offset : diff;
 
         memcpy(temp_buf + offset, buf + result, bytes_written);
-        write_blocks(DATA_BLOCKS_OFFSET + inode_table[fde.inode_num].data_ptrs[i], 1,temp_buf);
+        write_blocks(DATA_BLOCKS_OFFSET + inode_table[fde.inode_num].data_ptrs[i], 1, temp_buf);
 
         result += bytes_written;
         offset = 0;
