@@ -444,6 +444,12 @@ bool allocate_data_blocks_for_inode(uint32_t final_size, inode_t *const inode) {
     return true;
 }
 
+/**
+ * Note: When the length of bytes to be written is impossible to write,
+ * i.e. when it would cause the file to grow larger than the maximum size for a file,
+ * I chose to not write any bytes and not allocate any extra data blocks to the file,
+ * returning 0 as the amount of bytes written.
+ */
 int sfs_fwrite(int fileID, char *buf, int length) {
     if (0 > fileID || fileID >= NUM_OF_INODES) {
         return 0;
