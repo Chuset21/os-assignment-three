@@ -13,7 +13,7 @@
  * change this if your implementation differs.
  */
 #define MAX_FNAME_LENGTH 33   /* Assume at most 20 characters (16.3) */
-#define MAXFILENAME MAX_FNAME_LENGTH
+#define MAXFILENAME MAX_FNAME_LENGTH // This was not defined
 
 /* The maximum number of files to attempt to open or create.  NOTE: we
  * do not _require_ that you support this many files. This is just to
