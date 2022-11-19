@@ -19,10 +19,10 @@
 #define TOTAL_NUM_OF_BLOCKS (FREE_BITMAP_OFFSET + NUM_OF_FREE_BITMAP_BLOCKS)
 #define MAX_DATA_BLOCKS_FOR_FILE (NUM_OF_DATA_PTRS + INDIRECT_LIST_SIZE) // 12 direct pointers + the amount of indirect pointers possible
 #define MAX_NUM_OF_DIR_ENTRIES (NUM_OF_INODES - 1)
-#define FREE_BLOCK_MAP_ARR_SIZE (NUM_OF_DATA_BLOCKS / sizeof(uint64_t))
+#define FREE_BLOCK_MAP_ARR_SIZE (NUM_OF_DATA_BLOCKS / (sizeof(int) * 8))
 
 super_block_t super_block;
-uint64_t free_block_map[FREE_BLOCK_MAP_ARR_SIZE];
+int free_block_map[FREE_BLOCK_MAP_ARR_SIZE];
 inode_t inode_table[NUM_OF_INODES];
 directory_entry_t root_dir[MAX_NUM_OF_DIR_ENTRIES];
 file_descriptor_entry_t file_desc_table[NUM_OF_INODES];
@@ -72,7 +72,7 @@ void root_dir_init() {
  * Initialise the free block map.
  */
 void free_block_map_init() {
-    const uint64_t free = ~((uint64_t) 0);  // Set all bits to 1
+    const int free = ~((int) 0);  // Set all bits to 1
     for (int i = 0; i < FREE_BLOCK_MAP_ARR_SIZE; ++i) {
         free_block_map[i] = free;
     }
@@ -205,7 +205,7 @@ int sfs_getnextfilename(char *file_name) {
         return 0;
     }
 
-    strcpy(file_name, root_dir[current_file_index].file_name);
+    strncpy(file_name, root_dir[current_file_index].file_name, MAX_FILE_NAME_SIZE);
     current_file_index++;
 
     return 1;
@@ -320,12 +320,12 @@ int sfs_fopen(char *file_name) {
     if (inode_num >= MAX_NUM_OF_DIR_ENTRIES) {
         if (next_free_idx < MAX_NUM_OF_DIR_ENTRIES) {
             inode_num = get_lowest_inode_num();
-            if (inode_num >= MAX_NUM_OF_DIR_ENTRIES) {
+            if (inode_num >= MAX_NUM_OF_DIR_ENTRIES || strlen(file_name) > MAX_FILE_NAME_SIZE) {
                 return -1;
             }
 
             root_dir[next_free_idx].inode_num = inode_num;
-            strcpy(root_dir[next_free_idx].file_name, file_name);
+            strncpy(root_dir[next_free_idx].file_name, file_name, MAX_FILE_NAME_SIZE);
             // Set inode size to 0
             inode_table[inode_num].size = 0;
 
@@ -358,11 +358,11 @@ int sfs_fclose(int fileID) {
  * @param bit bit to set.
  */
 void set_bit(uint32_t bit) {
-    const uint32_t size_in_bits = sizeof(uint64_t) * 4;
+    const uint32_t size_in_bits = sizeof(int) * 8;
     const uint32_t arr_idx = bit / size_in_bits;
     const uint32_t bit_idx = bit % size_in_bits;
     // Set the bit
-    free_block_map[arr_idx] |= (((uint64_t) 1) << bit_idx);
+    free_block_map[arr_idx] |= (((int) 1) << bit_idx);
 }
 
 /**
@@ -370,13 +370,13 @@ void set_bit(uint32_t bit) {
  * Returns NUM_OF_DATA_BLOCKS if unsuccessful, when the disk is fully allocated.
  */
 uint32_t allocate_data_block() {
-    const int limit = sizeof(uint64_t) * 4;
+    const int limit = sizeof(int) * 8;
     for (int i = 0; i < FREE_BLOCK_MAP_ARR_SIZE; ++i) {
         for (int j = 0; j < limit; ++j) {
             // Check the bit
-            if ((free_block_map[i] >> j) & ((uint64_t) 1)) {
+            if ((free_block_map[i] >> j) & ((int) 1)) {
                 // Clear the bit
-                free_block_map[i] &= ~(((uint64_t) 1) << j);
+                free_block_map[i] &= ~(((int) 1) << j);
                 return limit * i + j;
             }
         }
@@ -587,7 +587,7 @@ void release_data_blocks(const inode_t inode) {
         // Getting the indirect pointers
         read_blocks(DATA_BLOCKS_OFFSET + inode.indirect, 1, ptrs);
         for (int i = 0; i < num_of_ptrs; ++i) {
-            set_bit(inode.data_ptrs[i]);
+            set_bit(ptrs[i]);
         }
     }
 }
