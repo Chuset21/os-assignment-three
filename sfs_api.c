@@ -14,12 +14,13 @@
 #define INODE_BLOCKS_OFFSET 1
 #define DATA_BLOCKS_OFFSET (INODE_BLOCKS_OFFSET + NUM_OF_INODE_BLOCKS)
 #define FREE_BITMAP_OFFSET (DATA_BLOCKS_OFFSET + NUM_OF_DATA_BLOCKS)
-#define NUM_OF_FREE_BITMAP_BLOCKS (NUM_OF_DATA_BLOCKS / BLOCK_SIZE)
+#define NUM_OF_FREE_BITMAP_BYTES CEIL(NUM_OF_DATA_BLOCKS, 8) // 8 bits in each byte
+#define NUM_OF_FREE_BITMAP_BLOCKS CEIL(NUM_OF_FREE_BITMAP_BYTES, BLOCK_SIZE)
 // Number of blocks needed to store -> super block + inode table + data blocks + free bitmap
 #define TOTAL_NUM_OF_BLOCKS (FREE_BITMAP_OFFSET + NUM_OF_FREE_BITMAP_BLOCKS)
 #define MAX_DATA_BLOCKS_FOR_FILE (NUM_OF_DATA_PTRS + INDIRECT_LIST_SIZE) // 12 direct pointers + the amount of indirect pointers possible
 #define MAX_NUM_OF_DIR_ENTRIES (NUM_OF_INODES - 1)
-#define FREE_BLOCK_MAP_ARR_SIZE (NUM_OF_DATA_BLOCKS / (sizeof(int) * 8))
+#define FREE_BLOCK_MAP_ARR_SIZE CEIL(NUM_OF_FREE_BITMAP_BYTES, sizeof(int))
 
 super_block_t super_block;
 int free_block_map[FREE_BLOCK_MAP_ARR_SIZE];
