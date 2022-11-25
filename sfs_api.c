@@ -528,6 +528,9 @@ int sfs_fread(int fileID, char *buf, int length) {
     // The idea is that if the pointer is in the middle of a block,
     // we should offset the first read, and only read into the buffer bytes after the pointer
     uint32_t offset = fde.read_write_ptr % BLOCK_SIZE;
+    // Don't read past the EOF
+    const int max_bytes_to_read = (int) (inode.size - fde.read_write_ptr);
+    length = length > max_bytes_to_read ? max_bytes_to_read : length;
     uint32_t result = 0;
     char *const temp_buf = malloc(sizeof(char) * BLOCK_SIZE);
     for (uint32_t i = start_block;
