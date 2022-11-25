@@ -469,7 +469,7 @@ int sfs_fwrite(int fileID, char *buf, int length) {
     const uint32_t start_block = fde.read_write_ptr / BLOCK_SIZE;
     uint32_t offset = fde.read_write_ptr % BLOCK_SIZE;
     uint32_t result = 0;
-    char *const temp_buf = malloc(sizeof(char) * BLOCK_SIZE);
+    char *const temp_buf = calloc(sizeof(char), BLOCK_SIZE);
     for (uint32_t i = start_block;
          i < NUM_OF_DATA_PTRS && i < blocks_used && result < length; ++i) {
 
@@ -532,7 +532,7 @@ int sfs_fread(int fileID, char *buf, int length) {
     const int max_bytes_to_read = (int) (inode.size - fde.read_write_ptr);
     length = length > max_bytes_to_read ? max_bytes_to_read : length;
     uint32_t result = 0;
-    char *const temp_buf = malloc(sizeof(char) * BLOCK_SIZE);
+    char *const temp_buf = calloc(sizeof(char), BLOCK_SIZE);
     for (uint32_t i = start_block;
          i < NUM_OF_DATA_PTRS && i < blocks_used && result < length; ++i) {
         // Read each data block one by one
